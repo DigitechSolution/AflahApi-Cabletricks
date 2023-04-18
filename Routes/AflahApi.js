@@ -15,7 +15,6 @@ var _ = require('underscore');
 var moment = require('moment');
 var jwt  = require('jsonwebtoken');
 const { exists, count } = require("../Model/Login");
-global.constant = require('../Global');
 const tblOperatorDevice = require('../Model/OperatorDevices')
 const tblOperatorPackages = require('../Model/OperatorPackages');
 const tblOperatorMso = require("../Model/OperatorMso");
