@@ -636,6 +636,81 @@ router.post("/getCustomerInfoManage", AuthMiddleware.verifyToken,async (request,
     }
 
 });
+router.post("/customer/add",AuthMiddleware.verifyToken, async (req, res) => {
+  const { operatorCustId, gstNo, custName, custLastName, houseName, contact, altContact, email, perAddress, initAddress,
+       city, state, pin, createDate, area, remarks, custType, discount,
+      assignedDevices } = req.body.data
+     
+let responseArray = {}
+      let assignedBox = assignedDevices.map((item)=>({
+          boxData:item.selectedDevice._id,          
+          status:1,
+          assignedPackage:[{
+              packageData:item.selectedPackage._id,
+              invoiceTypeId:item.invoiceType,
+              startDate:item.activationDate,
+              endDate:item.activationDate,
+              freeTier: item.freeTier === 'Nil' ? 0 : parseInt(item.freeTier),
+              status:1
+
+          }]
+          
+      }))
+
+      let newCustomer = await TblCustomerInfo.create({   
+        _id: mongoose.Types.ObjectId(),
+          operatorId:req.user.userData.operatorId,  
+          autoCustIdString: "",
+          operatorCustId: operatorCustId,
+          custName: custName,
+          custLastName: custLastName,
+          contact: contact,
+          altContact: altContact,
+          email: email,
+          perAddress: perAddress,
+          initAddress: initAddress,
+          area: area,
+          custType:custType,
+          city: city,
+          state: state,
+          pin: pin,
+          createDate:createDate ,
+          createTime: new Date().toLocaleTimeString(),
+          activationDate: createDate,
+          houseName: houseName,
+          gstNo: gstNo,
+          assignedBox:assignedBox,
+          due: 0,
+          dueString:"0",
+          remarks: remarks,
+          discount: discount === null ? 0 : discount,
+          status: 2
+          
+      })
+assignedDevices.map(async (item) =>{ 
+  await updateDeviceStatus(item.selectedDevice._id)
+})
+const requests = await createInvoice(newCustomer,1,req.body.discount)
+         
+          Promise.all(requests).then(async () => {
+            let match ={
+              "operatorId" : req.user.userData.operatorId,
+              "status": {$ne: 3}
+            }
+            let count = await getCount(match)
+            // let newData = await TblCustomerInfo.findOne({_id: newCustomer._id}).lean()    
+            // console.log(newData);        
+            responseArray = {
+              status: true,
+              message: "Account Create Successfully",
+              data: count
+              
+          }
+      
+            res.send(responseArray)
+          })
+     
+})
 function getCount (match) { 
   return new Promise(async (resolve, reject) => {    
     let countMap = await TblCustomerInfo.aggregate(
@@ -692,9 +767,6 @@ function getCustomerManage(request, response,operatorId,count,match,and) {
    
 })
 }
-const createCustomerMonthlyStatement=async (createData)=>{
-  return await tblCustomerMonthlyStatement.create(createData)
- }
 const getLatestInvoice= async (customerId)=>{
   // return await tblCustomerInvoice.findOne({customerId: mongoose.Types.ObjectId(customerId)},null,{ sort: { month: -1 } },)
   return await tblCustomerInvoice.aggregate([
@@ -751,6 +823,326 @@ const updateCustomerDue =async (customerId,paidAmount,totalDue,type)=>{
           $inc: inc
       },
       )
+
+
+}
+const updateDeviceStatus = async (deviceId) =>{ 
+  return await tblOperatorDevice.updateOne({_id: deviceId},{
+    $set: {
+      status: 3,
+      activeStatus: 'ACTIVE'
+    }
+  })
+}
+const createInvoice = async (newCustomer,forIndex,discount) => {
+  return new Promise(async (resolve,reject) => {
+  
+  let dateTillToday=[]
+  let d = new Date()
+  let invoicePrefix= getReceiptPrefix()
+
+  // let currentDate = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
+  // dateTillToday.push(currentDate)      
+  for(let index = forIndex ; index<=d.getDate() ;index++ ){
+      let currentDate = ("0" + index).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
+      dateTillToday.push(currentDate)
+  }  
+  let result = await TblCustomerInfo.aggregate([
+      {
+          $match: {
+              status: 2,
+              _id:newCustomer._id
+          }
+      },
+      {
+          $unwind: '$assignedBox'
+      },
+      {
+          $match: {              
+              'assignedBox.status': 1
+          }
+      },
+      {
+          $unwind: '$assignedBox.assignedPackage'
+      },
+      {
+          $match: {
+              'assignedBox.assignedPackage.endDate': { $in: dateTillToday } ,
+              'assignedBox.assignedPackage.status': 1
+          }
+      },
+      {
+          $lookup:
+          {
+              from: 'tblOperatorPackages',
+              localField: "assignedBox.assignedPackage.packageData",
+              foreignField: '_id',
+              as: 'assignedBox.assignedPackage.assignedPackageData'
+          }
+      },
+      {
+          $lookup:
+          {
+              from: 'tblOperatorInvoiceTypeData',
+              localField: "assignedBox.assignedPackage.invoiceTypeId",
+              foreignField: '_id',
+              as: 'assignedBox.assignedPackage.invoiceTypeId'
+          }
+      },
+      {
+          $project: {
+              custName: 0,
+              contact: 0,
+              email: 0,
+              perAddress: 0,
+              initAddress: 0,
+              area: 0,
+              city: 0,
+              state: 0,
+              pin: 0,
+              createDate: 0,
+              activationDate: 0,
+              houseName: 0,
+              custCategory: 0,
+              gstNo: 0,
+              custType: 0,
+              activationDeactivationHistory: 0,
+              sortId: 0,
+              autoCustId: 0,
+              autoCustIdString: 0,
+          }
+      }
+
+  ])
+  if(result.length>0){     
+   
+const offer = _.filter(result,function(resultPackage){ return resultPackage.assignedBox.assignedPackage.freeTier > 0})
+   
+offer.map( async (item)=>{     
+        await updateFreeTier(item)
+    
+    })
+      
+      let reStructureData = await getReStructureData(result)
+      let invoice = []
+let totalDue = newCustomer.due
+
+   for(let item of reStructureData) {
+     
+        totalDue = totalDue + item.totalSubscription           
+         
+let findData = _.find(invoice,function(res){return res.month == item.month})  
+if(findData){
+findData.subscriptionAmount = findData.subscriptionAmount + item.subscriptionAmount
+findData.cgst = findData.cgst + item.cgst
+findData.sgst = findData.sgst + item.sgst
+findData.totalSubscription = findData.totalSubscription + item.totalSubscription
+findData.packages = [...findData.packages, ...item.packages]
+}else{   
+
+let latestNumber = await getInvoiceNumber(item.operatorId)
+  let fullInvoiceNumber = `${latestNumber.invoiceNumber}/${invoicePrefix}`
+  invoice.push({
+    _id: mongoose.Types.ObjectId(),
+operatorId: item.operatorId,
+customerId: item.customerId,
+invoiceNumber: fullInvoiceNumber,
+month: item.month,
+subscriptionAmount: item.subscriptionAmount,
+cgst: item.cgst,
+sgst: item.sgst,
+totalSubscription: item.totalSubscription,
+discount:discount ? item.discount : 0,
+previousDue: item.previousDue,
+packages: item.packages,
+status: item.status,
+    })
+
+
+}
+  
+        
+      }
+      // Promise.all(createInvoiceData).then(async () => {
+        let created = await createCustomerInvoice(invoice)
+        created.map(async (invoiceCreate) =>{
+          let monthlyStatemenetData ={
+            _id: mongoose.Types.ObjectId(),
+                operatorId: invoiceCreate.operatorId,
+                customerId: invoiceCreate.customerId,
+                createdDate: moment(new Date(),moment.ISO_8601).format('DD/MM/YYYY'),
+                particulars: "",
+                transactionType: "Invoice",
+                transactionId: invoiceCreate.invoiceNumber,
+                previousDue: invoiceCreate.previousDue,
+                debit: 0,
+                credit: invoiceCreate.totalSubscription,
+                discount: invoiceCreate.discount,
+                balance: (invoiceCreate.previousDue + invoiceCreate.totalSubscription) - invoiceCreate.discount,
+                status: 1
+            }
+          await createCustomerMonthlyStatement(monthlyStatemenetData)
+        })
+      // })
+      
+      
+      const requestsUpdate = reStructureData.map(async (item) => {
+         
+        await updateCustomerAndDue(item)
+    })
+    Promise.all(requestsUpdate).then(async () => {      
+      let dueAfterDiscount = totalDue
+      if(discount){
+        dueAfterDiscount= totalDue - newCustomer.discount
+      }
+      
+      const requests = await updateDueAfterDiscount(newCustomer._id,dueAfterDiscount)
+      resolve([requests])
+    })
+    
+    }
+    else{
+   let due =0 
+         
+        const requests = await updateCustomer(newCustomer,due)
+   
+    resolve([requests])
+    }
+  
+   
+  })   
+}
+
+const getReceiptPrefix = ()=>{
+  let d = new Date()
+      let invoicePrefix
+let currentMonth = d.getMonth();
+let currentYear = d.getFullYear().toString().substring(2);
+if(currentMonth<3){
+    
+  currentYear = parseInt(currentYear) - 1  
+  
+}else{
+     currentYear = parseInt(currentYear)
+ 
+}
+invoicePrefix = `${currentYear}_${currentYear + 1}`
+return invoicePrefix
+}
+const updateFreeTier = async (items) => {
+  let inc = {}
+ 
+  let freeTier = items.assignedBox.assignedPackage.freeTier 
+  if(freeTier > 0)
+  {
+    inc = {"assignedBox.$[box].assignedPackage.$[package].freeTier": -1}
+  } 
+
+  return await TblCustomerInfo.updateOne({_id: items._id},
+    {
+      $inc: inc
+  },
+  { arrayFilters: [{ "box.boxData": mongoose.Types.ObjectId(items.assignedBox.boxData )}, { "package.packageData": items.assignedBox.assignedPackage.packageData }] }
+  )
+}
+const getReStructureData= async (result)=>{
+  const withoutOffer = _.filter(result,function(res){ return res.assignedBox.assignedPackage.freeTier == 0})
+ 
+  return withoutOffer.map(item => {   
+      return {
+          operatorId: item.operatorId,
+          customerId: item._id,
+          month: item.assignedBox.assignedPackage.endDate,
+          subscriptionAmount: item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
+          cgst: getGSTAmount(item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount, item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount),
+          sgst: getGSTAmount(item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount, item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount),
+          totalSubscription: item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount,
+          discount:item.discount,
+          previousDue: item.due,
+          packages: [{
+              _id: item.assignedBox.assignedPackage.packageData,
+              packageName: item.assignedBox.assignedPackage.assignedPackageData[0].packageName,
+              packageAmount: item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
+              tax: item.assignedBox.assignedPackage.assignedPackageData[0].tax,
+              withTaxAmount: item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount,
+              packageType: item.assignedBox.assignedPackage.assignedPackageData[0].packageType,
+              connectionType: item.assignedBox.assignedPackage.assignedPackageData[0].connectionType,
+              startDate: item.assignedBox.assignedPackage.startDate,
+              endDate: getEndDate(item?.assignedBox?.assignedPackage?.invoiceTypeId, item?.assignedBox?.assignedPackage?.endDate),
+          }],
+          status: 1,
+          assignedBox: item.assignedBox
+      
+    }
+  })
+}
+const getGSTAmount = (withoutTax, withTax) => {
+  return (parseFloat(withTax) - parseFloat(withoutTax)) / 2
+}
+const getEndDate = (invoiceTypeId, endDate) => { 
+  let splitDate = endDate.split('/')
+  let formatDate = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}` 
+  let d = new Date(formatDate)  
+  let datestring = ""
+  
+  const { duration, durationType } = invoiceTypeId[0]
+
+  if (durationType === 'Month') {
+      datestring = moment(d,moment.ISO_8601).add(parseInt(duration),'months').format("DD/MM/YYYY")
+  }
+  if (durationType === 'Day') {
+      datestring = moment(d,moment.ISO_8601).add(parseInt(duration),'days').format("DD/MM/YYYY")
+  } 
+  return datestring
+}
+const getInvoiceNumber= async (operatorId)=>{
+  return await TblOperator.findOneAndUpdate({operatorId: operatorId},{$inc: {invoiceNumber: 1}},{
+    "fields": { "invoiceNumber":1,"_id":0}
+   })
+}
+const createCustomerInvoice =async(item)=>{
+  return await tblCustomerInvoice.create(item)
+
+ 
+  // return 
+}
+const createCustomerMonthlyStatement=async (createData)=>{
+  return await tblCustomerMonthlyStatement.create(createData)
+ }
+ const updateCustomerAndDue =async (item)=>{
+  return await TblCustomerInfo.updateOne({ _id: item._id },
+      {
+          $set: {
+              "assignedBox.$[box].assignedPackage.$[package].endDate": getEndDate(item?.assignedBox?.assignedPackage?.invoiceTypeId, item?.assignedBox?.assignedPackage?.endDate),
+                },
+      },
+      { arrayFilters: [{ "box.boxData": item.assignedBox.boxData }, { "package.packageData": item.packages[0]._id }] })
+
+
+}
+const updateDueAfterDiscount =async (id,totalDue)=>{
+  return await TblCustomerInfo.updateOne({ _id: id },
+      {
+          $set: {
+              "dueString": totalDue + "",
+              'due': totalDue,
+              "statusString": "2"
+          },
+          // $inc: { 'due': totalDue }
+      })
+
+
+}
+const updateCustomer =async (item,totalDue)=>{
+  return await TblCustomerInfo.updateOne({ _id: item._id },
+      {
+          $set: {             
+              "dueString": totalDue + "",
+              "statusString": "2"
+          }
+         
+      },
+     )
 
 
 }
