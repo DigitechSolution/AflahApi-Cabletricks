@@ -16,4 +16,9 @@ databaseUtils.connectToServerMongo((err,client) => {
            
   
   });
-  app.listen(3033);
+  const port = 3034; // Change this to a different port number that is not already in use
+
+  app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+  });
+  
