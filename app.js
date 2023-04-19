@@ -1,9 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const dynamicRoutes = require("./Routes/AflahApi");
-const https = require('https')
-const fs = require('fs')
-const rootPath = require("path");
 const app = express();
 app.use(cors());
 app.use(express.json({limit: '50mb'}));
