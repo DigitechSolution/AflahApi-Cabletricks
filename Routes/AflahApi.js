@@ -15,6 +15,7 @@ var _ = require('underscore');
 var moment = require('moment');
 var jwt  = require('jsonwebtoken');
 const { exists, count } = require("../Model/Login");
+global.constant = require('../Global');
 const tblOperatorDevice = require('../Model/OperatorDevices')
 const tblOperatorPackages = require('../Model/OperatorPackages');
 const tblOperatorMso = require("../Model/OperatorMso");
@@ -156,10 +157,7 @@ router.post("/getCustomerInfoManage", AuthMiddleware.verifyToken,async (request,
   var post = request.body;  
   
     operatorId = request.user.userData.operatorId
-    
-    if(err)
-    response.send(403);
-    else{ 
+   
       var match ={ }
     var and = {}
     if(!isEmpty(post.filter)){  
@@ -633,8 +631,7 @@ router.post("/getCustomerInfoManage", AuthMiddleware.verifyToken,async (request,
         response.send(responseArray)
       });
     
-    }
-
+   
 });
 router.post("/customer/add",AuthMiddleware.verifyToken, async (req, res) => {
   const { operatorCustId, gstNo, custName, custLastName, houseName, contact, altContact, email, perAddress, initAddress,
@@ -1145,5 +1142,8 @@ const updateCustomer =async (item,totalDue)=>{
      )
 
 
+}
+function isEmpty(object) {  
+  return Object.keys(object).length === 0
 }
 module.exports = router;
