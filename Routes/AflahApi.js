@@ -8,7 +8,7 @@ const tblCustomerReceipt = require("../Model/CustomerPaymentReceipt");
 const tblCustomerRequest = require("../Model/OperatorRequest");
 const tblCustomerMonthlyStatement = require("../Model/CustomerMonthlyStatement");
 const TblOperatorInvoiceType = require("../Model/OperatorInvoiceType");
-const tblOtherExpense = require("../Model/OtherExpense");
+const tblOtherExpenseAndIncome = require("../Model/OtherExpenseAndIncome");
 
 var mongoose = require("mongoose");
 const AuthMiddleware = require("../Middleware/auth");
@@ -29,33 +29,35 @@ router.post("/", async (request, response) => {
 
 //// new api's from aflah ///
 router.post(
-  "/otherExpense/:Id",
+  "/otherExpenseAndIcome/:Id",
   AuthMiddleware.verifyToken,
   async (req, res) => {
-    const otherExpenseData = req.body;
+    const otherExpenseAndIcomeData = req.body;
     let obj = {
       opratorId: req.user.userData.operatorId,
-      ...otherExpenseData,
+      ...otherExpenseAndIcomeData,
       createdBy: req.params.Id,
       status: 1,
     };
     try {
-      let newOtherExpense = await tblOtherExpense.create({
+      let newData = await tblOtherExpenseAndIncome.create({
         ...obj,
       });
-      res.status(200).json(newOtherExpense);
+      res.status(200).json(newData);
     } catch (error) {
       res.status(500).json(error.message);
     }
   }
 );
 router.get(
-  "/getAllOtherExpence",
+  "/getAllOtherExpenseAndIcome",
   AuthMiddleware.verifyToken,
   async (req, res) => {
     try {
-      const otherExpenses = await tblOtherExpense.find({});
-      res.status(200).json(otherExpenses);
+      const otherExpensesAndIcome = await tblOtherExpenseAndIncome.find({});
+      res
+        .status(200)
+        .json({ data: otherExpensesAndIcome, message: "fetch data success!" });
     } catch (error) {
       res.status(500).json(error.message);
     }
@@ -63,12 +65,35 @@ router.get(
 );
 
 router.delete(
-  "/deleteOtherExpence/:id",
+  "/deleteOtherExpenseAndIncome/:id",
   AuthMiddleware.verifyToken,
   async (req, res) => {
     try {
-      await tblOtherExpense.findByIdAndDelete(req.params.id);
-      res.status(200).json({ message: "Other Expence deleted successfully!" });
+      await tblOtherExpenseAndIncome.findByIdAndDelete(req.params.id);
+      res.status(200).json({ message: "deleted successfully!" });
+    } catch (error) {
+      res.status(500).json(error.massage);
+    }
+  }
+);
+
+// router.put("/editOtherExpenseAndIcome/:id", AuthMiddleware.verifyToken, async (req, res) => {
+
+// })
+
+router.put(
+  "/editOtherExpenseAndIcome/:id",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const editData = await tblOtherExpenseAndIncome.findByIdAndUpdate(
+        req.params.id,
+        { $set: req.body },
+        { new: true }
+      );
+      res
+        .status(200)
+        .json({ message: "updated successfully!", data: editData });
     } catch (error) {
       res.status(500).json(error.massage);
     }

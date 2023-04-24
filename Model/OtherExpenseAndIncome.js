@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
-const otherExpense = mongoose.Schema(
+const otherExpenseAndIncome = mongoose.Schema(
   {
     opratorId: { type: String, required: true, index: true },
-    expenseTitle: { type: String, required: true },
+    title: { type: String, required: true },
     subTitle: { type: String, required: true },
+    type: { type: String, required: true},
     amount: { type: Number, required: true },
     modeOfPayment: { type: String, required: true },
     description: { type: String, required: true },
@@ -14,9 +15,9 @@ const otherExpense = mongoose.Schema(
   },
   { timestamps: true }
 );
-const tblOtherExpense = mongoose.model(
-  "tblOtherExpense",
-  otherExpense,
-  "tblOtherExpense"
+const tblOtherExpenseAndIncome = mongoose.model(
+  "tblOtherExpenseAndIncome",
+  otherExpenseAndIncome,
+  "tblOtherExpenseAndIncome"
 );
-module.exports = tblOtherExpense;
+module.exports = tblOtherExpenseAndIncome;
