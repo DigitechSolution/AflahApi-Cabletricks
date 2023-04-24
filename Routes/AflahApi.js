@@ -23,11 +23,12 @@ const tblOperatorPackages = require("../Model/OperatorPackages");
 const tblOperatorMso = require("../Model/OperatorMso");
 const { resolve } = require("path");
 const { rejects } = require("assert");
+const tblBankOperation = require("../Model/BankOperation");
 router.post("/", async (request, response) => {
   await authentication(request, response);
 });
 
-//// new api's from aflah ///
+//// other expense and other income ///
 router.post(
   "/otherExpenseAndIcome/:Id",
   AuthMiddleware.verifyToken,
@@ -43,7 +44,7 @@ router.post(
       let newData = await tblOtherExpenseAndIncome.create({
         ...obj,
       });
-      res.status(200).json(newData);
+      res.status(200).json({ data: newData, message: "created successfull!" });
     } catch (error) {
       res.status(500).json(error.message);
     }
@@ -77,10 +78,6 @@ router.delete(
   }
 );
 
-// router.put("/editOtherExpenseAndIcome/:id", AuthMiddleware.verifyToken, async (req, res) => {
-
-// })
-
 router.put(
   "/editOtherExpenseAndIcome/:id",
   AuthMiddleware.verifyToken,
@@ -100,7 +97,130 @@ router.put(
   }
 );
 
-///// End ////
+//// other expense and other income ///
+
+//// bank operation ////
+router.post(
+  "/addBankAndTransactions/:Id",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const { bankName, accountNumber, IFSC } = req.body;
+    const transaction = {
+      _id: mongoose.Types.ObjectId(),
+      transactionType: req.body.transaction[0].transactionType, //  deposit or 'withdrawal', depending on your use case
+      amount: req.body.transaction[0].amount,
+      dateOfTransaction: req.body.transaction[0].dateOfTransaction,
+      createdBy: req.params.Id,
+      status: 1,
+    };
+    const bank = {
+      operatorId: req.user.userData.operatorId,
+      bankName,
+      accountNumber,
+      IFSC,
+      status: 1,
+      transaction: [transaction],
+    };
+    try {
+      let newData = await tblBankOperation.create({
+        ...bank,
+      });
+      res.status(200).json({ data: newData, message: "created successfull!" });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+router.put(
+  "/addTransactionToBank/:bankId/:Id",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const { transactionType, amount, dateOfTransaction } = req.body;
+    const createdBy = req.params.Id; // replace with actual value
+    const status = 1; // replace with actual value
+
+    const transaction = {
+      _id: mongoose.Types.ObjectId(),
+      transactionType,
+      amount,
+      dateOfTransaction,
+      createdBy,
+      status,
+    };
+    try {
+      const updatedBank = await tblBankOperation.findOneAndUpdate(
+        { _id: req.params.bankId },
+        { $push: { transaction } },
+        { new: true }
+      );
+      res
+        .status(200)
+        .json({ data: updatedBank, message: "Add Transaction successfull!" });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+router.get(
+  "/getAllBankDetails",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const getAllBankDetails = await tblBankOperation.find({});
+      res.status(200).json({
+        data: getAllBankDetails,
+        message: "get all data successfull!",
+      });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+router.put(
+  "/removeTransactionFromBank/:bankId/:transactionId",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const updatedBank = await tblBankOperation.findOneAndUpdate(
+        { _id: req.params.bankId },
+        { $pull: { transaction: { _id: req.params.transactionId } } },
+        { new: true }
+      );
+      res.status(200).json({
+        data: updatedBank,
+        message: "remove transaction successfull!",
+      });
+    } catch (error) {
+      res.status(200).json(error.message);
+    }
+  }
+);
+
+router.put(
+  "/editTransaction/:bankId/:transactionId",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const { transactionType, amount, dateOfTransaction } = req.body;
+    const updatedTransaction = {
+      transactionType,
+      amount,
+      dateOfTransaction,
+    };
+    try {
+      const updatedBank = await tblBankOperation.findOneAndUpdate(
+        { _id: req.params.bankId, "transaction._id": req.params.transactionId },
+        { $set: { "transaction.$": updatedTransaction } },
+        { new: true }
+      );
+      res.status(200).json({ data: updatedBank, message: "edit successfull!" });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
 
 router.post(
   "/customer/payment/:customerId",
