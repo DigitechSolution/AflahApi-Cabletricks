@@ -35,7 +35,7 @@ router.post(
   async (req, res) => {
     const otherExpenseAndIcomeData = req.body;
     let obj = {
-      opratorId: req.user.userData.operatorId,
+      operatorId: req.user.userData.operatorId,
       ...otherExpenseAndIcomeData,
       createdBy: req.params.Id,
       status: 1,
@@ -132,18 +132,25 @@ router.post(
   }
 );
 
-router.put("/editBankDetails/:bankId/update", AuthMiddleware.verifyToken, async (req,res) => {
-  try {
-    const updateBankDetails = await tblBankOperation.findByIdAndUpdate(
-      { _id: req.params.bankId },
-      { $set: req.body },
-      { new: true }
-      );  
-      res.status(200).json({ message: "Updated bank successfull!", data: updateBankDetails })
+router.put(
+  "/editBankDetails/:bankId/update",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const updateBankDetails = await tblBankOperation.findByIdAndUpdate(
+        { _id: req.params.bankId },
+        { $set: req.body },
+        { new: true }
+      );
+      res.status(200).json({
+        message: "Updated bank successfull!",
+        data: updateBankDetails,
+      });
     } catch (error) {
-      res.status(500).json(error.message)
+      res.status(500).json(error.message);
     }
-})
+  }
+);
 
 router.put(
   "/addTransactionToBank/:bankId/:Id",
@@ -234,6 +241,145 @@ router.put(
     }
   }
 );
+
+/// banck oprations ///
+
+/// balance sheet ////
+
+router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
+  let operatorId = req.user.userData.operatorId;
+  try {
+    const dataFromCustomerIncome = await tblCustomerReceipt
+      .aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            amount: {
+              $sum: "$amount",
+            },
+          },
+        },
+        {
+          $project: {
+            income: "$amount",
+          },
+        },
+      ])
+      .exec();
+    const dataFromOtherIncomeAndExpense =
+      await tblOtherExpenseAndIncome.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            otherIncome: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$type", "icome"],
+                  },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
+            expense: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$type", "expense"],
+                  },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            OtherIncome: "$income",
+            expense: 1,
+            otherIncome: 1,
+          },
+        },
+      ]);
+    const bankDetails = await tblBankOperation.aggregate([
+      [
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $unwind: {
+            path: "$transaction",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            deposit: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$transaction.transactionType", "deposit"],
+                  },
+                  "$transaction.amount",
+                  0,
+                ],
+              },
+            },
+            withdraw: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$transaction.transactionType", "withdraw"],
+                  },
+                  "$transaction.amount",
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    //540
+    //-460
+    const incSubEx =
+      dataFromCustomerIncome[0].income +
+      dataFromOtherIncomeAndExpense[0].otherIncome -
+      dataFromOtherIncomeAndExpense[0].expense;
+    const bankBal = bankDetails[0].deposit - bankDetails[0].withdraw;
+    const response = {
+      totalIncome:
+        dataFromCustomerIncome[0].income +
+        dataFromOtherIncomeAndExpense[0].otherIncome,
+      totalExpense: dataFromOtherIncomeAndExpense[0].expense,
+      totalDeposit: bankDetails[0].deposit,
+      totalWidraw: bankDetails[0].withdraw,
+      inHand: incSubEx - bankBal,
+      loanAmount: 0, // Change this value if applicable
+      revenue: incSubEx
+    };
+    console.log(response, "response");
+    res.status(200).json({message: "Data generated for balance sheet successfull!", data: response})
+  } catch (error) {
+    res.status(500).json(error.message);
+  }
+});
+
+//// balance sheet ///
 
 router.post(
   "/customer/payment/:customerId",
@@ -377,30 +523,39 @@ router.post(
   }
 );
 
-router.post("/getConnectionInvoiceDetails", AuthMiddleware.verifyToken, async (request, response) => {
-  
-  getConnectionInvoiceDetails(request, request.user.userData.operatorId).then((data) =>{
-    responseArray = {
-      status: data.length === 0 ? false : true,
-      message: data.length === 0 ? "Authentication failed !" : "Data fetched successfully !",
-      response: {            
-        resultInvoice: data
+router.post(
+  "/getConnectionInvoiceDetails",
+  AuthMiddleware.verifyToken,
+  async (request, response) => {
+    getConnectionInvoiceDetails(request, request.user.userData.operatorId).then(
+      (data) => {
+        responseArray = {
+          status: data.length === 0 ? false : true,
+          message:
+            data.length === 0
+              ? "Authentication failed !"
+              : "Data fetched successfully !",
+          response: {
+            resultInvoice: data,
+          },
+        };
+        // console.log(boxDat.length);
+        response.send(responseArray);
       }
-    };    
-    // console.log(boxDat.length);   
-    response.send(responseArray)
+    );
+  }
+);
+function getConnectionInvoiceDetails(request, response, operatorId) {
+  return new Promise(async (resolve, reject) => {
+    var post = request.body;
+
+    tblCustomerReceipt
+      .find({ customerId: mongoose.Types.ObjectId(post.connectionId) })
+      .exec()
+      .then((data) => {
+        resolve(data);
+      });
   });
-
-});
-function getConnectionInvoiceDetails(request, response,operatorId) {
-return new Promise(async (resolve, reject) => { 
-var post = request.body; 
-
-tblCustomerReceipt.find({customerId : mongoose.Types.ObjectId(post.connectionId)}).exec().then((data) =>{
-
-    resolve(data)
-  })
-})
 }
 router.post(
   "/getCustomerInfoManage",
