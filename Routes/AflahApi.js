@@ -372,7 +372,6 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       loanAmount: 0, // Change this value if applicable
       revenue: incSubEx
     };
-    console.log(response, "response");
     res.status(200).json({message: "Data generated for balance sheet successfull!", data: response})
   } catch (error) {
     res.status(500).json(error.message);
