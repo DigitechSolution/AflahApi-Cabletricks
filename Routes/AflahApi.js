@@ -132,6 +132,19 @@ router.post(
   }
 );
 
+router.put("/editBankDetails/:bankId/update", AuthMiddleware.verifyToken, async (req,res) => {
+  try {
+    const updateBankDetails = await tblBankOperation.findByIdAndUpdate(
+      { _id: req.params.bankId },
+      { $set: req.body },
+      { new: true }
+      );  
+      res.status(200).json({ message: "Updated bank successfull!", data: updateBankDetails })
+    } catch (error) {
+      res.status(500).json(error.message)
+    }
+})
+
 router.put(
   "/addTransactionToBank/:bankId/:Id",
   AuthMiddleware.verifyToken,
@@ -184,13 +197,13 @@ router.put(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     try {
-      const updatedBank = await tblBankOperation.findOneAndUpdate(
+      const removeTransactionFromBank = await tblBankOperation.findOneAndUpdate(
         { _id: req.params.bankId },
         { $pull: { transaction: { _id: req.params.transactionId } } },
         { new: true }
       );
       res.status(200).json({
-        data: updatedBank,
+        data: removeTransactionFromBank,
         message: "remove transaction successfull!",
       });
     } catch (error) {
@@ -363,6 +376,32 @@ router.post(
     }
   }
 );
+
+router.post("/getConnectionInvoiceDetails", AuthMiddleware.verifyToken, async (request, response) => {
+  
+  getConnectionInvoiceDetails(request, request.user.userData.operatorId).then((data) =>{
+    responseArray = {
+      status: data.length === 0 ? false : true,
+      message: data.length === 0 ? "Authentication failed !" : "Data fetched successfully !",
+      response: {            
+        resultInvoice: data
+      }
+    };    
+    // console.log(boxDat.length);   
+    response.send(responseArray)
+  });
+
+});
+function getConnectionInvoiceDetails(request, response,operatorId) {
+return new Promise(async (resolve, reject) => { 
+var post = request.body; 
+
+tblCustomerReceipt.find({customerId : mongoose.Types.ObjectId(post.connectionId)}).exec().then((data) =>{
+
+    resolve(data)
+  })
+})
+}
 router.post(
   "/getCustomerInfoManage",
   AuthMiddleware.verifyToken,
