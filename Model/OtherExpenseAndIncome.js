@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const otherExpenseAndIncome = mongoose.Schema(
   {
-    opratorId: { type: String, required: true, index: true },
+    operatorId: { type: String, required: true, index: true },
     title: { type: String, required: true },
     subTitle: { type: String, required: true },
     type: { type: String, required: true},

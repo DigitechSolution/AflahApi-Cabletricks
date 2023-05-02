@@ -269,8 +269,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
             income: "$amount",
           },
         },
-      ])
-      .exec();
+      ]);
     const dataFromOtherIncomeAndExpense =
       await tblOtherExpenseAndIncome.aggregate([
         {
@@ -354,8 +353,110 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         },
       ],
     ]);
-    //540
-    //-460
+
+    // Revenue = { Collection(Cash): 10000,
+                  // Collection(Cheque): 5000,
+                  // Collection(Online):646,
+                  // Other Income(Cash): 45515,
+                  // Other Income(Cheque): 45515,
+                  // Other Income(Online): 45515,
+                  // Total Revenue: 12854655}
+
+
+      // Expense = { Other Expense(Cash): 45515,
+      //            Other Expense(Cheque): 45515,
+      //            Other Expense(Online): 45515,
+      //            Total Expense: 12854655}
+
+      const otherIncome = await tblOtherExpenseAndIncome.aggregate([
+        {
+          $match: {
+            operatorId: operatorId, 
+            type: "income"
+          }
+        }, {
+          $group: {
+            _id: {
+              modeOfPayment: '$modeOfPayment', 
+              type: "$type", 
+            }, 
+            otherIncome: {
+              $sum: {
+                $cond: [
+                  {
+                  }, '$amount', 0
+                ]
+              }
+            }
+          }
+        }, {
+          $project: {
+            _id: 0,
+            modeOfPayment: '$_id.modeOfPayment', 
+            type: '$_id.type', 
+            otherIncome: 1
+          }
+        }
+      ])
+      const otherExpense = await tblOtherExpenseAndIncome.aggregate([
+        {
+          $match: {
+            operatorId: operatorId, 
+            type: "expense"
+          }
+        }, {
+          $group: {
+            _id: {
+              modeOfPayment: '$modeOfPayment', 
+              type: "$type", 
+            }, 
+            otherIncome: {
+              $sum: {
+                $cond: [
+                  {
+                  }, '$amount', 0
+                ]
+              }
+            }
+          }
+        }, {
+          $project: {
+            _id: 0,
+            modeOfPayment: '$_id.modeOfPayment', 
+            type: '$_id.type',  
+            otherIncome: 1
+          }
+        }
+      ])
+
+      const Income = await tblCustomerReceipt
+      .aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              modeOfPayment: '$paymentMode', 
+            }, 
+            amount: {
+              $sum: "$amount",
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            income: "$amount",
+            modeOfPayment: '$_id.modeOfPayment', 
+          },
+        },
+      ])
+  
+      const obj = [...otherExpense, ...otherIncome, ...Income];
+  
     const incSubEx =
       dataFromCustomerIncome[0].income +
       dataFromOtherIncomeAndExpense[0].otherIncome -
@@ -372,7 +473,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       loanAmount: 0, // Change this value if applicable
       revenue: incSubEx
     };
-    res.status(200).json({message: "Data generated for balance sheet successfull!", data: response})
+    res.status(200).json({message: "Data generated for balance sheet successfull!", data: response, allDetails: obj})
   } catch (error) {
     res.status(500).json(error.message);
   }
