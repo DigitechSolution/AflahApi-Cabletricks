@@ -377,6 +377,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         }, {
           $group: {
             _id: {
+              title: "$title",
               modeOfPayment: '$modeOfPayment', 
               type: "$type", 
             }, 
@@ -392,6 +393,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         }, {
           $project: {
             _id: 0,
+            title: "$_id.title",
             modeOfPayment: '$_id.modeOfPayment', 
             type: '$_id.type', 
             otherIncome: 1
@@ -407,6 +409,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         }, {
           $group: {
             _id: {
+              title: "$title",
               modeOfPayment: '$modeOfPayment', 
               type: "$type", 
             }, 
@@ -422,6 +425,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         }, {
           $project: {
             _id: 0,
+            title: "$_id.title",
             modeOfPayment: '$_id.modeOfPayment', 
             type: '$_id.type',  
             otherIncome: 1
