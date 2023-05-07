@@ -24,6 +24,7 @@ const tblOperatorMso = require("../Model/OperatorMso");
 const { resolve } = require("path");
 const { rejects } = require("assert");
 const tblBankOperation = require("../Model/BankOperation");
+const tblCustomerInfo = require("../Model/CustomerInfo");
 router.post("/", async (request, response) => {
   await authentication(request, response);
 });
@@ -249,27 +250,26 @@ router.put(
 router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
   let operatorId = req.user.userData.operatorId;
   try {
-    const dataFromCustomerIncome = await tblCustomerReceipt
-      .aggregate([
-        {
-          $match: {
-            operatorId: operatorId,
+    const dataFromCustomerIncome = await tblCustomerReceipt.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          amount: {
+            $sum: "$amount",
           },
         },
-        {
-          $group: {
-            _id: null,
-            amount: {
-              $sum: "$amount",
-            },
-          },
+      },
+      {
+        $project: {
+          income: "$amount",
         },
-        {
-          $project: {
-            income: "$amount",
-          },
-        },
-      ]);
+      },
+    ]);
     const dataFromOtherIncomeAndExpense =
       await tblOtherExpenseAndIncome.aggregate([
         {
@@ -353,114 +353,96 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         },
       ],
     ]);
-
-    // Revenue = { Collection(Cash): 10000,
-                  // Collection(Cheque): 5000,
-                  // Collection(Online):646,
-                  // Other Income(Cash): 45515,
-                  // Other Income(Cheque): 45515,
-                  // Other Income(Online): 45515,
-                  // Total Revenue: 12854655}
-
-
-      // Expense = { Other Expense(Cash): 45515,
-      //            Other Expense(Cheque): 45515,
-      //            Other Expense(Online): 45515,
-      //            Total Expense: 12854655}
-
-      const otherIncome = await tblOtherExpenseAndIncome.aggregate([
-        {
-          $match: {
-            operatorId: operatorId, 
-            type: "income"
-          }
-        }, {
-          $group: {
-            _id: {
-              title: "$title",
-              modeOfPayment: '$modeOfPayment', 
-              type: "$type", 
-            }, 
-            otherIncome: {
-              $sum: {
-                $cond: [
-                  {
-                  }, '$amount', 0
-                ]
-              }
-            }
-          }
-        }, {
-          $project: {
-            _id: 0,
-            title: "$_id.title",
-            modeOfPayment: '$_id.modeOfPayment', 
-            type: '$_id.type', 
-            otherIncome: 1
-          }
-        }
-      ])
-      const otherExpense = await tblOtherExpenseAndIncome.aggregate([
-        {
-          $match: {
-            operatorId: operatorId, 
-            type: "expense"
-          }
-        }, {
-          $group: {
-            _id: {
-              title: "$title",
-              modeOfPayment: '$modeOfPayment', 
-              type: "$type", 
-            }, 
-            otherIncome: {
-              $sum: {
-                $cond: [
-                  {
-                  }, '$amount', 0
-                ]
-              }
-            }
-          }
-        }, {
-          $project: {
-            _id: 0,
-            title: "$_id.title",
-            modeOfPayment: '$_id.modeOfPayment', 
-            type: '$_id.type',  
-            otherIncome: 1
-          }
-        }
-      ])
-
-      const Income = await tblCustomerReceipt
-      .aggregate([
-        {
-          $match: {
-            operatorId: operatorId,
-          },
+    const otherIncome = await tblOtherExpenseAndIncome.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          type: "income",
         },
-        {
-          $group: {
-            _id: {
-              modeOfPayment: '$paymentMode', 
-            }, 
-            amount: {
-              $sum: "$amount",
+      },
+      {
+        $group: {
+          _id: {
+            title: "$title",
+            modeOfPayment: "$modeOfPayment",
+            type: "$type",
+          },
+          otherIncome: {
+            $sum: {
+              $cond: [{}, "$amount", 0],
             },
           },
         },
-        {
-          $project: {
-            _id: 0,
-            income: "$amount",
-            modeOfPayment: '$_id.modeOfPayment', 
+      },
+      {
+        $project: {
+          _id: 0,
+          title: "$_id.title",
+          modeOfPayment: "$_id.modeOfPayment",
+          type: "$_id.type",
+          otherIncome: 1,
+        },
+      },
+    ]);
+    const otherExpense = await tblOtherExpenseAndIncome.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          type: "expense",
+        },
+      },
+      {
+        $group: {
+          _id: {
+            title: "$title",
+            modeOfPayment: "$modeOfPayment",
+            type: "$type",
+          },
+          otherIncome: {
+            $sum: {
+              $cond: [{}, "$amount", 0],
+            },
           },
         },
-      ])
-  
-      const obj = [...otherExpense, ...otherIncome, ...Income];
-  
+      },
+      {
+        $project: {
+          _id: 0,
+          title: "$_id.title",
+          modeOfPayment: "$_id.modeOfPayment",
+          type: "$_id.type",
+          otherIncome: 1,
+        },
+      },
+    ]);
+
+    const Income = await tblCustomerReceipt.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            modeOfPayment: "$paymentMode",
+          },
+          amount: {
+            $sum: "$amount",
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          income: "$amount",
+          modeOfPayment: "$_id.modeOfPayment",
+        },
+      },
+    ]);
+
+    const obj = [...otherExpense, ...otherIncome, ...Income];
+
     const incSubEx =
       dataFromCustomerIncome[0].income +
       dataFromOtherIncomeAndExpense[0].otherIncome -
@@ -475,15 +457,85 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       totalWidraw: bankDetails[0].withdraw,
       inHand: incSubEx - bankBal,
       loanAmount: 0, // Change this value if applicable
-      revenue: incSubEx
+      revenue: incSubEx,
     };
-    res.status(200).json({message: "Data generated for balance sheet successfull!", data: response, allDetails: obj})
+    res.status(200).json({
+      message: "Data generated for balance sheet successfull!",
+      data: response,
+      allDetails: obj,
+    });
   } catch (error) {
     res.status(500).json(error.message);
   }
 });
 
 //// balance sheet ///
+
+/// fetch paid and unpaid customers spacific month /////
+router.get(
+  "/getPaidCustomerDetails",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const date = new Date(req.body.date);
+    const month = date.getMonth() + 1; // add 1 because $month operator returns 1-12
+    const year = date.getFullYear();
+    let operatorId = req.user.userData.operatorId;
+    try {
+      const response = await tblCustomerReceipt.aggregate([
+        {
+          $match: {
+            operatorId: operatorId, 
+            $expr: {
+              $and: [
+                {
+                  $eq: [
+                    {
+                      $month: '$createdAt'
+                    }, month
+                  ]
+                }, {
+                  $eq: [
+                    {
+                      $year: '$createdAt'
+                    }, year
+                  ]
+                }
+              ]
+            }
+          }
+        }, {
+          $lookup: {
+            from: "tblCustomerInfo", 
+            localField: "customerId", 
+            foreignField: "_id", 
+            as: "userDetails"
+          }
+        }, {
+          $unwind: {
+            path: '$userDetails'
+          }
+        }, {
+          $project: {
+            amount: 1, 
+            discount: 1, 
+            paidDate: 1, 
+            paymentMode: 1, 
+            remarks: 1, 
+            description: 1, 
+            userDetails: 1
+          }
+        }
+      ])
+      res.status(200).json({message: "Data fetch successfull!", data: response})
+    } catch (error) {
+      res.status(500).json(error.message) 
+    }
+  }
+);
+
+
+
+/// fetch paid and unpaid customers spacific month /////
 
 router.post(
   "/customer/payment/:customerId",
