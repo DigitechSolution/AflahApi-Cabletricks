@@ -50,6 +50,6 @@ const paymentReceiptData = mongoose.Schema(
         imei : {type : String , index : true},
         status : {type : Number , index : true}
 
-    },{ strict: false, versionKey: false });
+    },{ timeStamps: true },{ strict: false, versionKey: false });
     const tblCustomerReceipt = mongoose.model('tblCustomerReceipt', paymentReceiptData, 'tblCustomerReceipt');
 module.exports = tblCustomerReceipt;  
