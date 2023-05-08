@@ -484,56 +484,149 @@ router.get(
       const response = await tblCustomerReceipt.aggregate([
         {
           $match: {
-            operatorId: operatorId, 
+            operatorId: operatorId,
             $expr: {
               $and: [
                 {
                   $eq: [
                     {
-                      $month: '$createdAt'
-                    }, month
-                  ]
-                }, {
+                      $month: "$createdAt",
+                    },
+                    month,
+                  ],
+                },
+                {
                   $eq: [
                     {
-                      $year: '$createdAt'
-                    }, year
-                  ]
-                }
-              ]
-            }
-          }
-        }, {
+                      $year: "$createdAt",
+                    },
+                    year,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
           $lookup: {
-            from: "tblCustomerInfo", 
-            localField: "customerId", 
-            foreignField: "_id", 
-            as: "userDetails"
-          }
-        }, {
+            from: "tblCustomerInfo",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
           $unwind: {
-            path: '$userDetails'
-          }
-        }, {
+            path: "$userDetails",
+          },
+        },
+        {
           $project: {
-            amount: 1, 
-            discount: 1, 
-            paidDate: 1, 
-            paymentMode: 1, 
-            remarks: 1, 
-            description: 1, 
-            userDetails: 1
-          }
-        }
-      ])
-      res.status(200).json({message: "Data fetch successfull!", data: response})
+            amount: 1,
+            discount: 1,
+            paidDate: 1,
+            paymentMode: 1,
+            remarks: 1,
+            description: 1,
+            userDetails: 1,
+          },
+        },
+      ]);
+      res
+        .status(200)
+        .json({ message: "Data fetch successfull!", data: response });
     } catch (error) {
-      res.status(500).json(error.message) 
+      res.status(500).json(error.message);
     }
   }
 );
 
-
+router.get(
+  "/getUnPaidCustomerDetails",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const date = new Date(req.body.date);
+    const month = date.getMonth() + 1; // add 1 because $month operator returns 1-12
+    const year = date.getFullYear();
+    let operatorId = req.user.userData.operatorId;
+    try {
+      const response = await tblCustomerInfo.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $lookup: {
+            from: "tblCustomerReceipt",
+            localField: "_id",
+            foreignField: "customerId",
+            as: "paidDetails",
+          },
+        },
+        {
+          $addFields: {
+            unpaid: {
+              $and: [
+                {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: "$paidDetails",
+                          as: "pd",
+                          cond: {
+                            $and: [
+                              {
+                                $eq: [
+                                  {
+                                    $year: "$$pd.createdAt",
+                                  },
+                                  year,
+                                ],
+                              },
+                              {
+                                $eq: [
+                                  {
+                                    $month: "$$pd.createdAt",
+                                  },
+                                  month,
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                    0,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            unpaid: false,
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            custName: 1,
+            area: 1,
+            contact: 1,
+          },
+        },
+      ]);
+      res
+        .status(200)
+        .json({ massage: "Data Fetch successfull!", data: response });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
 
 /// fetch paid and unpaid customers spacific month /////
 
