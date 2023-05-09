@@ -632,34 +632,112 @@ router.get(
 
 /// current month created user List ///
 
-router.get("/currentMonthCretedCustomers", AuthMiddleware.verifyToken, async (req,res) => {
-  try {
-    const currentMonthCreatedCustomers = await tblCustomerInfo.aggregate([
-      {
-        $addFields: {
-          createDate: {
-            $dateFromString: {
-              dateString: "$createDate",
-              format: "%d/%m/%Y"
-            }
-          }
-        }
-      },
-      {
-        $match: {
-          $expr: {
-            $eq: [{ $month: "$createDate" }, new Date().getMonth() + 1]
-          }
-        }
-      }
-    ])
-    res.status(200).json({message: "data fetch successfull!", data: currentMonthCreatedCustomers})
-  } catch (error) {
-    res.status(500).json(error.message);
+router.get(
+  "/currentMonthCretedCustomers",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const currentMonthCreatedCustomers = await tblCustomerInfo.aggregate([
+        {
+          $addFields: {
+            createDate: {
+              $dateFromString: {
+                dateString: "$createDate",
+                format: "%d/%m/%Y",
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            $expr: {
+              $eq: [{ $month: "$createDate" }, new Date().getMonth() + 1],
+            },
+          },
+        },
+      ]);
+      res.status(200).json({
+        message: "data fetch successfull!",
+        data: currentMonthCreatedCustomers,
+      });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
   }
-})
+);
 
 /// current month created user List ///
+
+/// get expired package list ////
+
+router.get(
+  "/packages/expiring-soon/:days",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    let days = req.query.days
+    console.log(days);
+    let operatorId = req.user.userData.operatorId;
+    try {
+      const response = await tblCustomerInfo.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox.assignedPackage",
+          },
+        },
+        {
+          $addFields: {
+            "assignedBox.assignedPackage.endDate": {
+              $dateFromString: {
+                dateString: {
+                  $concat: [
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 6, 4] },
+                    "-",
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 3, 2] },
+                    "-",
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 0, 2] },
+                    "T00:00:00Z",
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            "assignedBox.assignedPackage.status": 1,
+            "assignedBox.status": 1,
+            "assignedBox.assignedPackage.endDate": {
+              $lte: new Date(new Date().getTime() + days * 24 * 60 * 60 * 1000),
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            custName: 1,
+            contact: 1,
+            packages: "$assignedBox.assignedPackage"
+          },
+        },
+      ]);
+      res.status(200).json({message: "fetch data successfull!", data: response})
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+/// get expired package list ////
 
 router.post(
   "/customer/payment/:customerId",
