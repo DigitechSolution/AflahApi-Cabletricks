@@ -675,7 +675,6 @@ router.get(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     let days = req.query.days
-    console.log(days);
     let operatorId = req.user.userData.operatorId;
     try {
       const response = await tblCustomerInfo.aggregate([
