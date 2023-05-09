@@ -630,6 +630,37 @@ router.get(
 
 /// fetch paid and unpaid customers spacific month /////
 
+/// current month created user List ///
+
+router.get("/currentMonthCretedCustomers", AuthMiddleware.verifyToken, async (req,res) => {
+  try {
+    const currentMonthCreatedCustomers = await tblCustomerInfo.aggregate([
+      {
+        $addFields: {
+          createDate: {
+            $dateFromString: {
+              dateString: "$createDate",
+              format: "%d/%m/%Y"
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          $expr: {
+            $eq: [{ $month: "$createDate" }, new Date().getMonth() + 1]
+          }
+        }
+      }
+    ])
+    res.status(200).json({message: "data fetch successfull!", data: currentMonthCreatedCustomers})
+  } catch (error) {
+    res.status(500).json(error.message);
+  }
+})
+
+/// current month created user List ///
+
 router.post(
   "/customer/payment/:customerId",
   AuthMiddleware.verifyToken,
