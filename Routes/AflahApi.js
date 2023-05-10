@@ -729,6 +729,30 @@ router.get(
             assignedPackages: "$assignedBox.assignedPackage"
           },
         },
+        {
+          $lookup: {
+            from: "tblOperatorDevice",
+            localField: "assignedBox",
+            foreignField: "_id",
+            as: "assignedBox"
+          }
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages",
+            localField: "assignedPackages.packageData",
+            foreignField: "_id",
+            as: "assignedPackages.packageData"
+          }
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "assignedPackages.invoiceTypeId",
+            foreignField: "_id",
+            as: "assignedPackages.invoiceData"
+          }
+        },
       ]);
       res.status(200).json({message: "fetch data successfull!", data: response})
     } catch (error) {
