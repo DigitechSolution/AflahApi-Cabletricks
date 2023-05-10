@@ -725,7 +725,8 @@ router.get(
             _id: 1,
             custName: 1,
             contact: 1,
-            packages: "$assignedBox.assignedPackage"
+            assignedBox: "$assignedBox.boxData",
+            assignedPackages: "$assignedBox.assignedPackage"
           },
         },
       ]);
