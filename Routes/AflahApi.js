@@ -725,32 +725,31 @@ router.get(
             _id: 1,
             custName: 1,
             contact: 1,
-            assignedBox: "$assignedBox.boxData",
-            assignedPackages: "$assignedBox.assignedPackage"
+            assignedBox: "$assignedBox",
           },
         },
         {
           $lookup: {
             from: "tblOperatorDevice",
-            localField: "assignedBox",
+            localField: "assignedBox.boxData",
             foreignField: "_id",
-            as: "assignedBox"
+            as: "assignedBox.boxData"
           }
         },
         {
           $lookup: {
             from: "tblOperatorPackages",
-            localField: "assignedPackages.packageData",
+            localField: "assignedBox.assignedPackage.packageData",
             foreignField: "_id",
-            as: "assignedPackages.packageData"
+            as: "assignedBox.assignedPackage.packageData"
           }
         },
         {
           $lookup: {
             from: "tblOperatorInvoiceTypeData",
-            localField: "assignedPackages.invoiceTypeId",
+            localField: "assignedBox.assignedPackage.invoiceTypeId",
             foreignField: "_id",
-            as: "assignedPackages.invoiceData"
+            as: "assignedBox.assignedPackage.invoiceTypeId"
           }
         },
       ]);
