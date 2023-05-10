@@ -726,6 +726,8 @@ router.get(
             custName: 1,
             contact: 1,
             assignedBox: "$assignedBox",
+            assignedPackageId: "$assignedBox.assignedPackage.packageData",
+            invoiceTypeId: "$assignedBox.assignedPackage.invoiceTypeId"
           },
         },
         {
@@ -733,13 +735,13 @@ router.get(
             from: "tblOperatorDevice",
             localField: "assignedBox.boxData",
             foreignField: "_id",
-            as: "assignedBox.boxData"
+            as: "assignedBox"
           }
         },
         {
           $lookup: {
             from: "tblOperatorPackages",
-            localField: "assignedBox.assignedPackage.packageData",
+            localField: "assignedPackageId",
             foreignField: "_id",
             as: "assignedBox.assignedPackage.packageData"
           }
@@ -747,11 +749,19 @@ router.get(
         {
           $lookup: {
             from: "tblOperatorInvoiceTypeData",
-            localField: "assignedBox.assignedPackage.invoiceTypeId",
+            localField: "invoiceTypeId",
             foreignField: "_id",
             as: "assignedBox.assignedPackage.invoiceTypeId"
           }
         },
+        {
+          $project:{
+            _id: 1,
+            custName: 1,
+            contact: 1,
+            assignedBox: "$assignedBox",
+          }
+        }
       ]);
       res.status(200).json({message: "fetch data successfull!", data: response})
     } catch (error) {
