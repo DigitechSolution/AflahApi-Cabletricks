@@ -739,11 +739,16 @@ router.get(
           }
         },
         {
+          $unwind: {
+            path: "$assignedBox"
+          }
+        },
+        {
           $lookup: {
             from: "tblOperatorPackages",
             localField: "assignedPackageId",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage.packageData"
+            as: "assignedBox.assignedPackage"
           }
         },
         {
@@ -751,7 +756,7 @@ router.get(
             from: "tblOperatorInvoiceTypeData",
             localField: "invoiceTypeId",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage.invoiceTypeId"
+            as: "assignedBox.invoiceTypeId"
           }
         },
         {
