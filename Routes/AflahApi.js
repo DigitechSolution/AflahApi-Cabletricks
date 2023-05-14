@@ -727,7 +727,11 @@ router.get(
             contact: 1,
             assignedBox: "$assignedBox",
             assignedPackageId: "$assignedBox.assignedPackage.packageData",
-            invoiceTypeId: "$assignedBox.assignedPackage.invoiceTypeId"
+            invoiceTypeId: "$assignedBox.assignedPackage.invoiceTypeId",
+            startDate: "$assignedBox.assignedPackage.startDate",
+            endDate: "$assignedBox.assignedPackage.endDate",
+            packageStatus: "$assignedBox.assignedPackage.status",
+            freeTier: "$assignedBox.assignedPackage.freeTier",
           },
         },
         {
@@ -752,12 +756,29 @@ router.get(
           }
         },
         {
+          $unwind: {
+            path: "$assignedBox.assignedPackage"
+          }
+        },
+        {
           $lookup: {
             from: "tblOperatorInvoiceTypeData",
             localField: "invoiceTypeId",
             foreignField: "_id",
-            as: "assignedBox.invoiceTypeId"
+            as: "assignedBox.assignedPackage.invoiceTypeId"
           }
+        },{
+          $unwind: {
+            path: "$assignedBox.assignedPackage.invoiceTypeId"
+          }
+        },
+        {
+            $addFields: {
+              "assignedBox.assignedPackage.startDate": "$startDate",
+              "assignedBox.assignedPackage.endDate": "$endDate",
+              "assignedBox.assignedPackage.freeTier": "$freeTier",
+              "assignedBox.assignedPackage.packageStatus": "$packageStatus",
+            } 
         },
         {
           $project:{
@@ -766,7 +787,7 @@ router.get(
             contact: 1,
             assignedBox: "$assignedBox",
           }
-        }
+        },
       ]);
       res.status(200).json({message: "fetch data successfull!", data: response})
     } catch (error) {
