@@ -674,7 +674,7 @@ router.get(
   "/packages/expiring-soon/:days",
   AuthMiddleware.verifyToken,
   async (req, res) => {
-    let days = req.query.days
+    let days = req.query.days;
     let operatorId = req.user.userData.operatorId;
     try {
       const response = await tblCustomerInfo.aggregate([
@@ -694,17 +694,25 @@ router.get(
           },
         },
         {
+          $match: {
+            "assignedBox.assignedPackage.status": 1,
+            "assignedBox.status": 1,
+            "assignedBox.assignedPackage.endDate": {
+              $not: { $in: [null, ""] },
+            },
+          },
+        },
+        {
           $addFields: {
             "assignedBox.assignedPackage.endDate": {
               $dateFromString: {
                 dateString: {
                   $concat: [
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 6, 4] },
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 6, 4] }, // Year
                     "-",
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 3, 2] },
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 3, 2] }, // Month
                     "-",
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 0, 2] },
-                    "T00:00:00Z",
+                    { $substr: ["$assignedBox.assignedPackage.endDate", 0, 2] }, // Day
                   ],
                 },
               },
@@ -739,57 +747,60 @@ router.get(
             from: "tblOperatorDevice",
             localField: "assignedBox.boxData",
             foreignField: "_id",
-            as: "assignedBox"
-          }
+            as: "assignedBox",
+          },
         },
         {
           $unwind: {
-            path: "$assignedBox"
-          }
+            path: "$assignedBox",
+          },
         },
         {
           $lookup: {
             from: "tblOperatorPackages",
             localField: "assignedPackageId",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage"
-          }
+            as: "assignedBox.assignedPackage",
+          },
         },
         {
           $unwind: {
-            path: "$assignedBox.assignedPackage"
-          }
+            path: "$assignedBox.assignedPackage",
+          },
         },
         {
           $lookup: {
             from: "tblOperatorInvoiceTypeData",
             localField: "invoiceTypeId",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage.invoiceTypeId"
-          }
-        },{
+            as: "assignedBox.assignedPackage.invoiceTypeId",
+          },
+        },
+        {
           $unwind: {
-            path: "$assignedBox.assignedPackage.invoiceTypeId"
-          }
+            path: "$assignedBox.assignedPackage.invoiceTypeId",
+          },
         },
         {
-            $addFields: {
-              "assignedBox.assignedPackage.startDate": "$startDate",
-              "assignedBox.assignedPackage.endDate": "$endDate",
-              "assignedBox.assignedPackage.freeTier": "$freeTier",
-              "assignedBox.assignedPackage.packageStatus": "$packageStatus",
-            } 
+          $addFields: {
+            "assignedBox.assignedPackage.startDate": "$startDate",
+            "assignedBox.assignedPackage.endDate": "$endDate",
+            "assignedBox.assignedPackage.freeTier": "$freeTier",
+            "assignedBox.assignedPackage.packageStatus": "$packageStatus",
+          },
         },
         {
-          $project:{
+          $project: {
             _id: 1,
             custName: 1,
             contact: 1,
             assignedBox: "$assignedBox",
-          }
+          },
         },
       ]);
-      res.status(200).json({message: "fetch data successfull!", data: response})
+      res
+        .status(200)
+        .json({ message: "fetch data successfull!", data: response });
     } catch (error) {
       res.status(500).json(error.message);
     }
