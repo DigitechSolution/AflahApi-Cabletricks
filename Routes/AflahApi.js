@@ -521,14 +521,22 @@ router.get(
           },
         },
         {
-          $project: {
-            amount: 1,
-            discount: 1,
-            paidDate: 1,
-            paymentMode: 1,
-            remarks: 1,
-            description: 1,
-            userDetails: 1,
+          $group: {
+            _id: "$userDetails._id",
+            userDetails: { $first: "$userDetails" },
+            otherDetails: {
+              $push: {
+                amount: "$amount",
+                description: "$description",
+                discount: "$discount",
+                paidDate: "$paidDate",
+                paymentMode: "$paymentMode",
+                methode: "$methode",
+                status: "$status",
+                paymentType: "$paymentType",
+                currentDue: "$currentDue",
+              },
+            },
           },
         },
       ]);
@@ -612,7 +620,7 @@ router.get(
         },
         {
           $project: {
-            _id: 1,
+            id: 1,
             custName: 1,
             area: 1,
             contact: 1,
@@ -675,6 +683,10 @@ router.get(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     let days = req.query.days;
+    let targetDate = new Date();
+    targetDate.setUTCHours(0, 0, 0, 0); // Set time to midnight in UTC
+    targetDate.setDate(targetDate.getDate() + Number(days));
+    const formattedDate = targetDate.toISOString().substring(0, 10);
     let operatorId = req.user.userData.operatorId;
     try {
       const response = await tblCustomerInfo.aggregate([
@@ -723,8 +735,25 @@ router.get(
           $match: {
             "assignedBox.assignedPackage.status": 1,
             "assignedBox.status": 1,
-            "assignedBox.assignedPackage.endDate": {
-              $lte: new Date(new Date().getTime() + days * 24 * 60 * 60 * 1000),
+            $expr: {
+              $eq: [
+                {
+                  $dateToString: {
+                    date: "$assignedBox.assignedPackage.endDate",
+                    format: "%Y-%m-%d",
+                  },
+                },
+                {
+                  $dateToString: {
+                    date: {
+                      $dateFromString: {
+                        dateString: formattedDate,
+                      },
+                    },
+                    format: "%Y-%m-%d",
+                  },
+                },
+              ],
             },
           },
         },
