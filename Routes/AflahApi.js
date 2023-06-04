@@ -521,6 +521,55 @@ router.get(
           },
         },
         {
+          $unwind: {
+            path: "$userDetails.assignedBox",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails.assignedBox.assignedPackage",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorDevice",
+            localField: "userDetails.assignedBox.boxData",
+            foreignField: "_id",
+            as: "userDetails.assignedBox.boxData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails.assignedBox.boxData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages",
+            localField: "userDetails.assignedBox.assignedPackage.packageData",
+            foreignField: "_id",
+            as: "userDetails.assignedBox.assignedPackage.packageData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails.assignedBox.assignedPackage.packageData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            foreignField: "_id",
+            as: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails.assignedBox.assignedPackage.invoiceTypeId",
+          },
+        },
+        {
           $group: {
             _id: "$userDetails._id",
             userDetails: { $first: "$userDetails" },
