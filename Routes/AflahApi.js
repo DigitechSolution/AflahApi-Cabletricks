@@ -521,39 +521,29 @@ router.get(
           },
         },
         {
-          $unwind: {
-            path: "$userDetails.assignedBox",
-          },
-        },
-        {
-          $unwind: {
-            path: "$userDetails.assignedBox.assignedPackage",
-          },
-        },
-        {
           $lookup: {
-            from: "tblOperatorDevice",
+            from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
             localField: "userDetails.assignedBox.boxData",
             foreignField: "_id",
-            as: "userDetails.assignedBox.boxData",
+            as: "boxData",
           },
         },
         {
           $unwind: {
-            path: "$userDetails.assignedBox.boxData",
+            path: "$boxData",
           },
         },
         {
           $lookup: {
-            from: "tblOperatorPackages",
+            from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
             localField: "userDetails.assignedBox.assignedPackage.packageData",
             foreignField: "_id",
-            as: "userDetails.assignedBox.assignedPackage.packageData",
+            as: "assignedPackageData",
           },
         },
         {
           $unwind: {
-            path: "$userDetails.assignedBox.assignedPackage.packageData",
+            path: "$assignedPackageData",
           },
         },
         {
@@ -561,18 +551,52 @@ router.get(
             from: "tblOperatorInvoiceTypeData",
             localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
             foreignField: "_id",
-            as: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            as: "invoiceData",
           },
         },
         {
           $unwind: {
-            path: "$userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            path: "$invoiceData",
+          },
+        },
+        {
+          $set: {
+            "userDetails.assignedBox": {
+              $map: {
+                input: "$userDetails.assignedBox",
+                as: "box",
+                in: {
+                  $mergeObjects: [
+                    "$$box",
+                    {
+                      boxData: "$boxData",
+                      assignedPackage: {
+                        $map: {
+                          input: "$$box.assignedPackage",
+                          as: "package",
+                          in: {
+                            $mergeObjects: [
+                              "$$package",
+                              {
+                                packageData: "packageData",
+                                invoiceTypeId: "$invoiceData",
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
           },
         },
         {
           $group: {
             _id: "$userDetails._id",
             userDetails: { $first: "$userDetails" },
+            assignedBox: { $push: "$userDetails.assignedBox" },
             otherDetails: {
               $push: {
                 amount: "$amount",
@@ -585,6 +609,39 @@ router.get(
                 paymentType: "$paymentType",
                 currentDue: "$currentDue",
               },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            otherDetails: 1,
+            userDetails: {
+              userId: "$_id",
+              operatorId: "$userDetails.operatorId",
+              operatorCustId: "$userDetails.operatorCustId",
+              custName: "$userDetails.custName",
+              contact: "$userDetails.contact",
+              email: "$userDetails.email",
+              perAddress: "$userDetails.perAddress",
+              initAddress: "$userDetails.initAddress",
+              area: "$userDetails.area",
+              city: "$userDetails.city",
+              state: "$userDetails.state",
+              pin: "$userDetails.pin",
+              createDate: "$userDetails.createDate",
+              activationDate: "$uesrDetails.activationDate",
+              houseName: "$userDetails.houseName",
+              custCategory: "$userDetails.custCategory",
+              gstNo: "$userDetails.gstNo",
+              custType: "$userDetails.custType",
+              due: "$userDetails.due",
+              dueString: "$userDetails.dueString",
+              discount: "$userDetails.discount",
+              postPaid: "$userDetails.postPaid",
+              status: "$userDetails.status",
+              assignedBox: "$assignedBox",
+              statusString: "$userDetails.statusString",
             },
           },
         },
