@@ -613,6 +613,11 @@ router.get(
           },
         },
         {
+          $unwind: {
+            path: "$assignedBox"
+          }
+        },
+        {
           $project: {
             _id: 0,
             otherDetails: 1,
