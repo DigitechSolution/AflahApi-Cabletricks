@@ -614,8 +614,8 @@ router.get(
         },
         {
           $unwind: {
-            path: "$assignedBox"
-          }
+            path: "$assignedBox",
+          },
         },
         {
           $project: {
@@ -797,23 +797,16 @@ router.get(
     let targetDate = new Date();
     targetDate.setUTCHours(0, 0, 0, 0); // Set time to midnight in UTC
     targetDate.setDate(targetDate.getDate() + Number(days));
-    const formattedDate = targetDate.toISOString().substring(0, 10);
+    const formatted = targetDate.toISOString().substring(0, 10);
+    const parts = formatted.split("-");
+    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
     let operatorId = req.user.userData.operatorId;
+    console.log(formattedDate);
     try {
       const response = await tblCustomerInfo.aggregate([
         {
           $match: {
             operatorId: operatorId,
-          },
-        },
-        {
-          $unwind: {
-            path: "$assignedBox",
-          },
-        },
-        {
-          $unwind: {
-            path: "$assignedBox.assignedPackage",
           },
         },
         {
@@ -823,118 +816,79 @@ router.get(
             "assignedBox.assignedPackage.endDate": {
               $not: { $in: [null, ""] },
             },
-          },
-        },
-        {
-          $addFields: {
-            "assignedBox.assignedPackage.endDate": {
-              $dateFromString: {
-                dateString: {
-                  $concat: [
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 6, 4] }, // Year
-                    "-",
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 3, 2] }, // Month
-                    "-",
-                    { $substr: ["$assignedBox.assignedPackage.endDate", 0, 2] }, // Day
-                  ],
-                },
-              },
-            },
-          },
-        },
-        {
-          $match: {
-            "assignedBox.assignedPackage.status": 1,
-            "assignedBox.status": 1,
-            $expr: {
-              $eq: [
-                {
-                  $dateToString: {
-                    date: "$assignedBox.assignedPackage.endDate",
-                    format: "%Y-%m-%d",
-                  },
-                },
-                {
-                  $dateToString: {
-                    date: {
-                      $dateFromString: {
-                        dateString: formattedDate,
-                      },
-                    },
-                    format: "%Y-%m-%d",
-                  },
-                },
-              ],
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            custName: 1,
-            contact: 1,
-            assignedBox: "$assignedBox",
-            assignedPackageId: "$assignedBox.assignedPackage.packageData",
-            invoiceTypeId: "$assignedBox.assignedPackage.invoiceTypeId",
-            startDate: "$assignedBox.assignedPackage.startDate",
-            endDate: "$assignedBox.assignedPackage.endDate",
-            packageStatus: "$assignedBox.assignedPackage.status",
-            freeTier: "$assignedBox.assignedPackage.freeTier",
+            "assignedBox.assignedPackage.endDate": formattedDate,
           },
         },
         {
           $lookup: {
-            from: "tblOperatorDevice",
+            from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
             localField: "assignedBox.boxData",
             foreignField: "_id",
-            as: "assignedBox",
+            as: "boxData",
           },
         },
         {
           $unwind: {
-            path: "$assignedBox",
+            path: "$boxData",
           },
         },
         {
           $lookup: {
-            from: "tblOperatorPackages",
-            localField: "assignedPackageId",
+            from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+            localField: "assignedBox.assignedPackage.packageData",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage",
+            as: "assignedPackageData",
           },
         },
         {
           $unwind: {
-            path: "$assignedBox.assignedPackage",
+            path: "$assignedPackageData",
           },
         },
         {
           $lookup: {
             from: "tblOperatorInvoiceTypeData",
-            localField: "invoiceTypeId",
+            localField: "assignedBox.assignedPackage.invoiceTypeId",
             foreignField: "_id",
-            as: "assignedBox.assignedPackage.invoiceTypeId",
+            as: "invoiceData",
           },
         },
         {
           $unwind: {
-            path: "$assignedBox.assignedPackage.invoiceTypeId",
+            path: "$invoiceData",
           },
         },
         {
-          $addFields: {
-            "assignedBox.assignedPackage.startDate": "$startDate",
-            "assignedBox.assignedPackage.endDate": "$endDate",
-            "assignedBox.assignedPackage.freeTier": "$freeTier",
-            "assignedBox.assignedPackage.packageStatus": "$packageStatus",
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            custName: 1,
-            contact: 1,
-            assignedBox: "$assignedBox",
+          $set: {
+            assignedBox: {
+              $map: {
+                input: "$assignedBox",
+                as: "box",
+                in: {
+                  $mergeObjects: [
+                    "$$box",
+                    {
+                      boxData: "$boxData",
+                      assignedPackage: {
+                        $map: {
+                          input: "$$box.assignedPackage",
+                          as: "package",
+                          in: {
+                            $mergeObjects: [
+                              "$$package",
+                              {
+                                packageData: "packageData",
+                                invoiceTypeId: "$invoiceData",
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
           },
         },
       ]);
