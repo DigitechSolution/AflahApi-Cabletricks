@@ -567,18 +567,16 @@ router.get(
                 as: "box",
                 in: {
                   $mergeObjects: [
-                    "$$box",
+                    "$boxData",
                     {
-                      boxData: "$boxData",
                       assignedPackage: {
                         $map: {
                           input: "$$box.assignedPackage",
                           as: "package",
                           in: {
                             $mergeObjects: [
-                              "$$package",
+                              "$assignedPackageData",
                               {
-                                packageData: "packageData",
                                 invoiceTypeId: "$invoiceData",
                               },
                             ],
@@ -801,7 +799,6 @@ router.get(
     const parts = formatted.split("-");
     const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
     let operatorId = req.user.userData.operatorId;
-    console.log(formattedDate);
     try {
       const response = await tblCustomerInfo.aggregate([
         {
@@ -866,18 +863,16 @@ router.get(
                 as: "box",
                 in: {
                   $mergeObjects: [
-                    "$$box",
+                    "$boxData",
                     {
-                      boxData: "$boxData",
                       assignedPackage: {
                         $map: {
                           input: "$$box.assignedPackage",
                           as: "package",
                           in: {
                             $mergeObjects: [
-                              "$$package",
+                              "$assignedPackageData",
                               {
-                                packageData: "packageData",
                                 invoiceTypeId: "$invoiceData",
                               },
                             ],
@@ -889,6 +884,49 @@ router.get(
                 },
               },
             },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id",
+            assignedBox: { $push: "$assignedBox" },
+            otherDetails: {
+              $push: {
+                operatorId: "$operatorId",
+                operatorCustId: "$operatorCustId",
+                custName: "$custName",
+                contact: "$contact",
+                email: "$email",
+                perAddress: "$perAddress",
+                initAddress: "$initAddress",
+                area: "$area",
+                city: "$city",
+                state: "$state",
+                pin: "$pin",
+                createDate: "$createDate",
+                activationDate: "$activationDate",
+                houseName: "$houseName",
+                custCategory: "$custCategory",
+                gstNo: "$gstNO",
+                custType: "$custType",
+                due: "$due",
+                dueString: "$dueString",
+                discount: "$discount",
+                postPaid: "$postPaid",
+                status: "$status",
+                statusString: "$statusString",
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox",
+          },
+        },
+        {
+          $unwind: {
+            path: "$otherDetails",
           },
         },
       ]);
