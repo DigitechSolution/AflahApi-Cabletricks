@@ -576,6 +576,7 @@ router.get(
                           in: {
                             $mergeObjects: [
                               "$assignedPackageData",
+                              "$$package",
                               {
                                 invoiceTypeId: "$invoiceData",
                               },
@@ -872,6 +873,7 @@ router.get(
                           in: {
                             $mergeObjects: [
                               "$assignedPackageData",
+                              "$$package",
                               {
                                 invoiceTypeId: "$invoiceData",
                               },
@@ -887,46 +889,18 @@ router.get(
           },
         },
         {
-          $group: {
-            _id: "$_id",
-            assignedBox: { $push: "$assignedBox" },
-            otherDetails: {
-              $push: {
-                operatorId: "$operatorId",
-                operatorCustId: "$operatorCustId",
-                custName: "$custName",
-                contact: "$contact",
-                email: "$email",
-                perAddress: "$perAddress",
-                initAddress: "$initAddress",
-                area: "$area",
-                city: "$city",
-                state: "$state",
-                pin: "$pin",
-                createDate: "$createDate",
-                activationDate: "$activationDate",
-                houseName: "$houseName",
-                custCategory: "$custCategory",
-                gstNo: "$gstNO",
-                custType: "$custType",
-                due: "$due",
-                dueString: "$dueString",
-                discount: "$discount",
-                postPaid: "$postPaid",
-                status: "$status",
-                statusString: "$statusString",
-              },
-            },
-          },
-        },
-        {
-          $unwind: {
-            path: "$assignedBox",
-          },
-        },
-        {
-          $unwind: {
-            path: "$otherDetails",
+          $project: {
+            _id: 1,
+            custName: 1,
+            contact: 1,
+            email: 1,
+            perAddress: 1,
+            initAddress: 1,
+            area: 1,
+            city: 1,
+            state: 1,
+            houseName: 1,
+            assignedBox: 1,
           },
         },
       ]);
