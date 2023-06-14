@@ -913,6 +913,166 @@ router.get(
   }
 );
 
+router.get(
+  "/packages/expire_before/:days",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    let days = req.params.days;
+    let targetDate = new Date();
+    targetDate.setUTCHours(0, 0, 0, 0); // Set time to midnight in UTC
+    targetDate.setDate(targetDate.getDate() + Number(days));
+    const formattedDate = targetDate;
+    let operatorId = req.user.userData.operatorId;
+    try {
+      const response = await tblCustomerInfo.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox.assignedPackage",
+          },
+        },
+        {
+          $match: {
+            "assignedBox.assignedPackage.status": 1,
+            "assignedBox.status": 1,
+            "assignedBox.assignedPackage.endDate": {
+              $not: {
+                $in: [null, ""],
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            "assignedBox.assignedPackage.endDate": {
+              $dateFromParts: {
+                year: {
+                  $toInt: {
+                    $substr: ["$assignedBox.assignedPackage.endDate", 6, 4],
+                  },
+                },
+                month: {
+                  $toInt: {
+                    $substr: ["$assignedBox.assignedPackage.endDate", 3, 2],
+                  },
+                },
+                day: {
+                  $toInt: {
+                    $substr: ["$assignedBox.assignedPackage.endDate", 0, 2],
+                  },
+                },
+                hour: 0,
+                minute: 0,
+                second: 0,
+                timezone: "UTC",
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            "assignedBox.assignedPackage.endDate": {
+              $lte: formattedDate,
+              $gt: new Date(),
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+            localField: "assignedBox.boxData",
+            foreignField: "_id",
+            as: "boxData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$boxData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+            localField: "assignedBox.assignedPackage.packageData",
+            foreignField: "_id",
+            as: "assignedPackageData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedPackageData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "assignedBox.assignedPackage.invoiceTypeId",
+            foreignField: "_id",
+            as: "invoiceData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$invoiceData",
+          },
+        },
+        {
+          $set: {
+            assignedBox: [
+              {
+                $mergeObjects: [
+                  "$boxData",
+                  {
+                    assignedPackage: [
+                      {
+                        $mergeObjects: [
+                          "$assignedPackageData",
+                          {
+                            invoiceTypeId: "$invoiceData",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            custName: 1,
+            contact: 1,
+            email: 1,
+            perAddress: 1,
+            initAddress: 1,
+            area: 1,
+            city: 1,
+            state: 1,
+            houseName: 1,
+            assignedBox: 1,
+          },
+        },
+      ]);
+      res
+        .status(200)
+        .json({ message: "fetch data successfull!", data: response });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
 /// get expired package list ////
 
 router.post(
