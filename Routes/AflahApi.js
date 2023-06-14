@@ -1036,6 +1036,7 @@ router.get(
                       {
                         $mergeObjects: [
                           "$assignedPackageData",
+                          "$assignedBox.assignedPackage",
                           {
                             invoiceTypeId: "$invoiceData",
                           },
