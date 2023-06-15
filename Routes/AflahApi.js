@@ -923,6 +923,7 @@ router.get(
     targetDate.setDate(targetDate.getDate() + Number(days));
     const formattedDate = targetDate;
     let operatorId = req.user.userData.operatorId;
+    console.log(formattedDate);
     try {
       const response = await tblCustomerInfo.aggregate([
         {
@@ -953,7 +954,7 @@ router.get(
         },
         {
           $addFields: {
-            "assignedBox.assignedPackage.endDate": {
+            "assignedBox.assignedPackage.end_Date": {
               $dateFromParts: {
                 year: {
                   $toInt: {
@@ -980,7 +981,7 @@ router.get(
         },
         {
           $match: {
-            "assignedBox.assignedPackage.endDate": {
+            "assignedBox.assignedPackage.end_Date": {
               $lte: formattedDate,
               $gt: new Date(),
             },
