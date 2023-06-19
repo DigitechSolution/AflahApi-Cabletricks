@@ -477,6 +477,7 @@ router.get(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     const date = new Date(req.body.date);
+    console.log(date);
     const month = date.getMonth() + 1; // add 1 because $month operator returns 1-12
     const year = date.getFullYear();
     let operatorId = req.user.userData.operatorId;
@@ -923,7 +924,6 @@ router.get(
     targetDate.setDate(targetDate.getDate() + Number(days));
     const formattedDate = targetDate;
     let operatorId = req.user.userData.operatorId;
-    console.log(formattedDate);
     try {
       const response = await tblCustomerInfo.aggregate([
         {
@@ -1076,6 +1076,180 @@ router.get(
 );
 
 /// get expired package list ////
+
+/// get area ways customerReceipt details  ///
+
+router.get(
+  "/customerReceipt/filterWithArea",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const area = req.query.area;
+    let operatorId = req.user.userData.operatorId;
+    try {
+      const response = await tblCustomerReceipt.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $lookup: {
+            from: "tblCustomerInfo",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+          },
+        },
+        {
+          $match: {
+            "userDetails.area": area,
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+            localField: "userDetails.assignedBox.boxData",
+            foreignField: "_id",
+            as: "boxData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$boxData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+            localField: "userDetails.assignedBox.assignedPackage.packageData",
+            foreignField: "_id",
+            as: "assignedPackageData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedPackageData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            foreignField: "_id",
+            as: "invoiceData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$invoiceData",
+          },
+        },
+        {
+          $set: {
+            "userDetails.assignedBox": {
+              $map: {
+                input: "$userDetails.assignedBox",
+                as: "box",
+                in: {
+                  $mergeObjects: [
+                    "$boxData",
+                    {
+                      assignedPackage: {
+                        $map: {
+                          input: "$$box.assignedPackage",
+                          as: "package",
+                          in: {
+                            $mergeObjects: [
+                              "$assignedPackageData",
+                              "$$package",
+                              {
+                                invoiceTypeId: "$invoiceData",
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$userDetails._id",
+            userDetails: { $first: "$userDetails" },
+            assignedBox: { $push: "$userDetails.assignedBox" },
+            otherDetails: {
+              $push: {
+                amount: "$amount",
+                description: "$description",
+                discount: "$discount",
+                paidDate: "$paidDate",
+                paymentMode: "$paymentMode",
+                methode: "$methode",
+                status: "$status",
+                paymentType: "$paymentType",
+                currentDue: "$currentDue",
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedBox",
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            otherDetails: 1,
+            userDetails: {
+              userId: "$_id",
+              operatorId: "$userDetails.operatorId",
+              operatorCustId: "$userDetails.operatorCustId",
+              custName: "$userDetails.custName",
+              contact: "$userDetails.contact",
+              email: "$userDetails.email",
+              perAddress: "$userDetails.perAddress",
+              initAddress: "$userDetails.initAddress",
+              area: "$userDetails.area",
+              city: "$userDetails.city",
+              state: "$userDetails.state",
+              pin: "$userDetails.pin",
+              createDate: "$userDetails.createDate",
+              activationDate: "$uesrDetails.activationDate",
+              houseName: "$userDetails.houseName",
+              custCategory: "$userDetails.custCategory",
+              gstNo: "$userDetails.gstNo",
+              custType: "$userDetails.custType",
+              due: "$userDetails.due",
+              dueString: "$userDetails.dueString",
+              discount: "$userDetails.discount",
+              postPaid: "$userDetails.postPaid",
+              status: "$userDetails.status",
+              assignedBox: "$assignedBox",
+              statusString: "$userDetails.statusString",
+            },
+          },
+        },
+      ]);
+      res
+        .status(200)
+        .json({ message: "fetch data successfull!", data: response });
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+/// get area ways customerReceipt details  ///
 
 router.post(
   "/customer/payment/:customerId",
@@ -1235,7 +1409,6 @@ router.post(
             resultInvoice: data,
           },
         };
-        // console.log(boxDat.length);
         response.send(responseArray);
       }
     );
