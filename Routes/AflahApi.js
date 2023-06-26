@@ -1182,106 +1182,12 @@ router.get(
           },
         },
         {
-          $project:{
-            "_id": 1,
-            "operatorId": 1,
-            "customerId": 1,
-            "description": 1,
-            "amount": 1,
-            "discount": 1,
-            "paidDate": 1,
-            "paidTime": 1,
-            "custOffAmount": 1,
-            "paymentType": 1,
-            "paymentMode": 1,
-            "collectionStaff": 1,
-            "credit": 1,
-            "previousDue": 1,
-            "currentDue": 1,
-            "paymentFrom": 1,
-            "remarks": 1,
-            "receiptNo":1,
-            "captureStatus": 1,
-            "currency": 1,
-            "methode": 1,
-            "payType": 1,
-            "bank": 1,
-            "email": 1,
-            "contact": 1,
-            "fee": 1,
-            "tax": 1,
-            "errorCode": 1,
-            "errorDesc": 1,
-            "createAt": 1,
-            "rzpAccountNo": 1,
-            "transferFee": 1,
-            "transferTax": 1,
-            "transferCreateAt": 1,
-            "transferId": 1,
-            "regPhoneNo": 1,
-            "imei": 1,
-            "status": 1,
-            "userDetails": 1
-          }
+          $project: {
+            boxData: 0,
+            assignedPackageData: 0,
+            invoiceData: 0,
+          },
         },
-        // {
-        //   $group: {
-        //     _id: "$userDetails._id",
-        //     userDetails: { $first: "$userDetails" },
-        //     assignedBox: { $push: "$userDetails.assignedBox" },
-        //     otherDetails: {
-        //       $push: {
-        //         amount: "$amount",
-        //         description: "$description",
-        //         discount: "$discount",
-        //         paidDate: "$paidDate",
-        //         paymentMode: "$paymentMode",
-        //         methode: "$methode",
-        //         status: "$status",
-        //         paymentType: "$paymentType",
-        //         currentDue: "$currentDue",
-        //       },
-        //     },
-        //   },
-        // },
-        // {
-        //   $unwind: {
-        //     path: "$assignedBox",
-        //   },
-        // },
-        // {
-        //   $project: {
-        //     _id: 0,
-        //     otherDetails: 1,
-        //     userDetails: {
-        //       userId: "$_id",
-        //       operatorId: "$userDetails.operatorId",
-        //       operatorCustId: "$userDetails.operatorCustId",
-        //       custName: "$userDetails.custName",
-        //       contact: "$userDetails.contact",
-        //       email: "$userDetails.email",
-        //       perAddress: "$userDetails.perAddress",
-        //       initAddress: "$userDetails.initAddress",
-        //       area: "$userDetails.area",
-        //       city: "$userDetails.city",
-        //       state: "$userDetails.state",
-        //       pin: "$userDetails.pin",
-        //       createDate: "$userDetails.createDate",
-        //       activationDate: "$uesrDetails.activationDate",
-        //       houseName: "$userDetails.houseName",
-        //       custCategory: "$userDetails.custCategory",
-        //       gstNo: "$userDetails.gstNo",
-        //       custType: "$userDetails.custType",
-        //       due: "$userDetails.due",
-        //       dueString: "$userDetails.dueString",
-        //       discount: "$userDetails.discount",
-        //       postPaid: "$userDetails.postPaid",
-        //       status: "$userDetails.status",
-        //       assignedBox: "$assignedBox",
-        //       statusString: "$userDetails.statusString",
-        //     },
-        //   },
-        // },
       ]);
       res
         .status(200)
@@ -1474,9 +1380,7 @@ router.post(
   AuthMiddleware.verifyToken,
   async (request, response) => {
     var post = request.body;
-
     operatorId = request.user.userData.operatorId;
-
     var match = {};
     var and = {};
     if (!isEmpty(post.filter)) {
@@ -1485,48 +1389,59 @@ router.post(
         post.filter.subid_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.operatorCustId = { $regex: `${val.Contains}` };
+              match.operatorCustIdLower = {
+                $regex: `${val.Contains.toLowerCase()}`,
+                $options: "i",
+              };
             }
           }
           if (typeof val.Equals != "undefined") {
             if (val.Equals != "All") {
-              match.operatorCustId = val.Equals;
+              match.operatorCustIdLower = val.Equals.toLowerCase();
             }
           }
           if (typeof val["Starts with"] != "undefined") {
             if (val["Starts with"] != "All") {
-              match.operatorCustId = {
-                $regex: `^${val["Starts with"]}`,
+              match.operatorCustIdLower = {
+                $regex: `^${val["Starts with"].toLowerCase()}`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Ends with"] != "undefined") {
             if (val["Ends with"] != "All") {
-              match.operatorCustId = {
-                $regex: `${val["Ends with"]}$`,
+              match.operatorCustIdLower = {
+                $regex: `${val["Ends with"].toLowerCase()}$`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Greater than"] != "undefined") {
             if (val["Greater than"] != "All") {
-              match.operatorCustId = { $gt: val["Greater than"] };
+              match.operatorCustIdLower = {
+                $gt: val["Greater than"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Greater than or equal to"] != "undefined") {
             if (val["Greater than or equal to"] != "All") {
-              match.operatorCustId = { $gte: val["Greater than or equal to"] };
+              match.operatorCustIdLower = {
+                $gte: val["Greater than or equal to"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Less than"] != "undefined") {
             if (val["Less than"] != "All") {
-              match.operatorCustId = { $lt: val["Less than"] };
+              match.operatorCustIdLower = {
+                $lt: val["Less than"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Less than or equal to"] != "undefined") {
             if (val["Less than or equal to"] != "All") {
-              match.operatorCustId = { $lte: val["Less than or equal to"] };
+              match.operatorCustIdLower = {
+                $lte: val["Less than or equal to"].toLowerCase(),
+              };
             }
           }
         });
@@ -1535,7 +1450,10 @@ router.post(
         post.filter.cusid_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.autoCustIdString = { $regex: `${val.Contains}` };
+              match.autoCustIdString = {
+                $regex: `${val.Contains}`,
+                $options: "i",
+              };
             }
           }
           if (typeof val.Equals != "undefined") {
@@ -1586,48 +1504,55 @@ router.post(
         post.filter.name_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.custName = { $regex: `${val.Contains}` };
+              match.custNameLower = {
+                $regex: `${val.Contains.toLowerCase()}`,
+                $options: "i",
+              };
             }
           }
           if (typeof val.Equals != "undefined") {
             if (val.Equals != "All") {
-              match.custName = val.Equals;
+              match.custNameLower = val.Equals.toLowerCase();
             }
           }
           if (typeof val["Starts with"] != "undefined") {
             if (val["Starts with"] != "All") {
-              match.custName = {
-                $regex: `^${val["Starts with"]}`,
+              match.custNameLower = {
+                $regex: `^${val["Starts with"].toLowerCase()}`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Ends with"] != "undefined") {
             if (val["Ends with"] != "All") {
-              match.custName = {
-                $regex: `${val["Ends with"]}$`,
+              match.custNameLower = {
+                $regex: `${val["Ends with"].toLowerCase()}$`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Greater than"] != "undefined") {
             if (val["Greater than"] != "All") {
-              match.custName = { $gt: val["Greater than"] };
+              match.custNameLower = { $gt: val["Greater than"].toLowerCase() };
             }
           }
           if (typeof val["Greater than or equal to"] != "undefined") {
             if (val["Greater than or equal to"] != "All") {
-              match.custName = { $gte: val["Greater than or equal to"] };
+              match.custNameLower = {
+                $gte: val["Greater than or equal to"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Less than"] != "undefined") {
             if (val["Less than"] != "All") {
-              match.custName = { $lt: val["Less than"] };
+              match.custNameLower = { $lt: val["Less than"].toLowerCase() };
             }
           }
           if (typeof val["Less than or equal to"] != "undefined") {
             if (val["Less than or equal to"] != "All") {
-              match.custName = { $lte: val["Less than or equal to"] };
+              match.custNameLower = {
+                $lte: val["Less than or equal to"].toLowerCase(),
+              };
             }
           }
         });
@@ -1636,7 +1561,7 @@ router.post(
         post.filter.contact_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.contact = { $regex: `${val.Contains}` };
+              match.contact = { $regex: `${val.Contains}`, $options: "i" };
             }
           }
           if (typeof val.Equals != "undefined") {
@@ -1683,42 +1608,55 @@ router.post(
         post.filter.area_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.area = { $regex: `${val.Contains}` };
+              match.areaLower = {
+                $regex: `${val.Contains.toLowerCase()}`,
+                $options: "i",
+              };
             }
           }
           if (typeof val.Equals != "undefined") {
             if (val.Equals != "All") {
-              match.area = val.Equals;
+              match.areaLower = val.Equals.toLowerCase();
             }
           }
           if (typeof val["Starts with"] != "undefined") {
             if (val["Starts with"] != "All") {
-              match.area = { $regex: `^${val["Starts with"]}`, $options: "m" };
+              match.areaLower = {
+                $regex: `^${val["Starts with"].toLowerCase()}`,
+                $options: "m",
+              };
             }
           }
           if (typeof val["Ends with"] != "undefined") {
             if (val["Ends with"] != "All") {
-              match.area = { $regex: `${val["Ends with"]}$`, $options: "m" };
+              match.areaLower = {
+                $regex: `${val["Ends with"].toLowerCase()}$`,
+                $options: "m",
+              };
             }
           }
           if (typeof val["Greater than"] != "undefined") {
             if (val["Greater than"] != "All") {
-              match.area = { $gt: val["Greater than"] };
+              match.areaLower = { $gt: val["Greater than"].toLowerCase() };
             }
           }
           if (typeof val["Greater than or equal to"] != "undefined") {
             if (val["Greater than or equal to"] != "All") {
-              match.area = { $gte: val["Greater than or equal to"] };
+              match.areaLower = {
+                $gte: val["Greater than or equal to"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Less than"] != "undefined") {
             if (val["Less than"] != "All") {
-              match.area = { $lt: val["Less than"] };
+              match.areaLower = { $lt: val["Less than"].toLowerCase() };
             }
           }
           if (typeof val["Less than or equal to"] != "undefined") {
             if (val["Less than or equal to"] != "All") {
-              match.area = { $lte: val["Less than or equal to"] };
+              match.areaLower = {
+                $lte: val["Less than or equal to"].toLowerCase(),
+              };
             }
           }
         });
@@ -1727,48 +1665,55 @@ router.post(
         post.filter.house_field.map((val) => {
           if (typeof val.Contains != "undefined") {
             if (val.Contains != "All") {
-              match.houseName = { $regex: `${val.Contains}` };
+              match.houseNameLower = {
+                $regex: `${val.Contains.toLowerCase()}`,
+                $options: "i",
+              };
             }
           }
           if (typeof val.Equals != "undefined") {
             if (val.Equals != "All") {
-              match.houseName = val.Equals;
+              match.houseNameLower = val.Equals.toLowerCase();
             }
           }
           if (typeof val["Starts with"] != "undefined") {
             if (val["Starts with"] != "All") {
-              match.houseName = {
-                $regex: `^${val["Starts with"]}`,
+              match.houseNameLower = {
+                $regex: `^${val["Starts with"].toLowerCase()}`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Ends with"] != "undefined") {
             if (val["Ends with"] != "All") {
-              match.houseName = {
-                $regex: `${val["Ends with"]}$`,
+              match.houseNameLower = {
+                $regex: `${val["Ends with"].toLowerCase()}$`,
                 $options: "m",
               };
             }
           }
           if (typeof val["Greater than"] != "undefined") {
             if (val["Greater than"] != "All") {
-              match.houseName = { $gt: val["Greater than"] };
+              match.houseNameLower = { $gt: val["Greater than"].toLowerCase() };
             }
           }
           if (typeof val["Greater than or equal to"] != "undefined") {
             if (val["Greater than or equal to"] != "All") {
-              match.houseName = { $gte: val["Greater than or equal to"] };
+              match.houseNameLower = {
+                $gte: val["Greater than or equal to"].toLowerCase(),
+              };
             }
           }
           if (typeof val["Less than"] != "undefined") {
             if (val["Less than"] != "All") {
-              match.houseName = { $lt: val["Less than"] };
+              match.houseNameLower = { $lt: val["Less than"].toLowerCase() };
             }
           }
           if (typeof val["Less than or equal to"] != "undefined") {
             if (val["Less than or equal to"] != "All") {
-              match.houseName = { $lte: val["Less than or equal to"] };
+              match.houseNameLower = {
+                $lte: val["Less than or equal to"].toLowerCase(),
+              };
             }
           }
         });
@@ -1836,14 +1781,71 @@ router.post(
           }
         });
       }
+      if (post.filter.hasOwnProperty("type_field")) {
+        var or = [];
+        post.filter.type_field.map((val) => {
+          if (typeof val.Contains != "undefined") {
+            if (val.Contains != "All") {
+              match.custTypeLower = {
+                $regex: `${val.Contains.toLowerCase()}`,
+                $options: "i",
+              };
+            }
+          }
+          if (typeof val.Equals != "undefined") {
+            if (val.Equals != "All") {
+              match.custTypeLower = val.Equals.toLowerCase();
+            }
+          }
+          if (typeof val["Starts with"] != "undefined") {
+            if (val["Starts with"] != "All") {
+              match.custTypeLower = {
+                $regex: `^${val["Starts with"].toLowerCase()}`,
+                $options: "m",
+              };
+            }
+          }
+          if (typeof val["Ends with"] != "undefined") {
+            if (val["Ends with"] != "All") {
+              match.custTypeLower = {
+                $regex: `${val["Ends with"].toLowerCase()}$`,
+                $options: "m",
+              };
+            }
+          }
+          if (typeof val["Greater than"] != "undefined") {
+            if (val["Greater than"] != "All") {
+              match.custTypeLower = { $gt: val["Greater than"].toLowerCase() };
+            }
+          }
+          if (typeof val["Greater than or equal to"] != "undefined") {
+            if (val["Greater than or equal to"] != "All") {
+              match.custTypeLower = {
+                $gte: val["Greater than or equal to"].toLowerCase(),
+              };
+            }
+          }
+          if (typeof val["Less than"] != "undefined") {
+            if (val["Less than"] != "All") {
+              match.custTypeLower = { $lt: val["Less than"].toLowerCase() };
+            }
+          }
+          if (typeof val["Less than or equal to"] != "undefined") {
+            if (val["Less than or equal to"] != "All") {
+              match.custTypeLower = {
+                $lte: val["Less than or equal to"].toLowerCase(),
+              };
+            }
+          }
+        });
+      }
     }
-
     match.operatorId = operatorId;
     if (!match.hasOwnProperty("status")) {
       match.status = { $ne: 3 };
     }
 
-    var count = await getCount(match);
+    var count = await getCount(match, and);
 
     getCustomerManage(request, response, operatorId, count, match, and).then(
       (cusDat) => {
@@ -1863,106 +1865,30 @@ router.post(
     );
   }
 );
-router.post("/customer/add", AuthMiddleware.verifyToken, async (req, res) => {
-  const {
-    operatorCustId,
-    gstNo,
-    custName,
-    custLastName,
-    houseName,
-    contact,
-    altContact,
-    email,
-    perAddress,
-    initAddress,
-    city,
-    state,
-    pin,
-    createDate,
-    area,
-    remarks,
-    custType,
-    discount,
-    assignedDevices,
-  } = req.body.data;
-
-  let responseArray = {};
-  let assignedBox = assignedDevices.map((item) => ({
-    boxData: item.selectedDevice._id,
-    status: 1,
-    assignedPackage: [
-      {
-        packageData: item.selectedPackage._id,
-        invoiceTypeId: item.invoiceType,
-        startDate: item.activationDate,
-        endDate: item.activationDate,
-        freeTier: item.freeTier === "Nil" ? 0 : parseInt(item.freeTier),
-        status: 1,
-      },
-    ],
-  }));
-
-  let newCustomer = await TblCustomerInfo.create({
-    _id: mongoose.Types.ObjectId(),
-    operatorId: req.user.userData.operatorId,
-    autoCustIdString: "",
-    operatorCustId: operatorCustId,
-    custName: custName,
-    custLastName: custLastName,
-    contact: contact,
-    altContact: altContact,
-    email: email,
-    perAddress: perAddress,
-    initAddress: initAddress,
-    area: area,
-    custType: custType,
-    city: city,
-    state: state,
-    pin: pin,
-    createDate: createDate,
-    createTime: new Date().toLocaleTimeString(),
-    activationDate: createDate,
-    houseName: houseName,
-    gstNo: gstNo,
-    assignedBox: assignedBox,
-    due: 0,
-    dueString: "0",
-    remarks: remarks,
-    discount: discount === null ? 0 : discount,
-    status: 2,
-  });
-  assignedDevices.map(async (item) => {
-    await updateDeviceStatus(item.selectedDevice._id);
-  });
-  const requests = await createInvoice(newCustomer, 1, req.body.discount);
-
-  Promise.all(requests).then(async () => {
-    let match = {
-      operatorId: req.user.userData.operatorId,
-      status: { $ne: 3 },
-    };
-    let count = await getCount(match);
-    // let newData = await TblCustomerInfo.findOne({_id: newCustomer._id}).lean()
-    responseArray = {
-      status: true,
-      message: "Account Create Successfully",
-      data: count,
-    };
-
-    res.send(responseArray);
-  });
-});
-function getCount(match) {
+function getCount(match, and) {
   return new Promise(async (resolve, reject) => {
     let countMap = await TblCustomerInfo.aggregate([
       {
+        $addFields: {
+          custNameLower: { $toLower: "$custName" },
+          operatorCustIdLower: { $toLower: "$operatorCustId" },
+          contactLower: { $toLower: "$contact" },
+          areaLower: { $toLower: "$area" },
+          houseNameLower: { $toLower: "$houseName" },
+          custTypeLower: { $toLower: "$custType" },
+        },
+      },
+      {
         $match: match,
       },
+      {
+        $match: and,
+      },
     ]);
-
     resolve(countMap.length);
   });
 }
+
 function getCustomerManage(request, response, operatorId, count, match, and) {
   return new Promise(async (resolve, reject) => {
     var post = request.body;
@@ -1975,165 +1901,57 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
       perPage = parseInt(count);
       page = Math.max(0, post.page);
     }
-
-    let cust = await TblCustomerInfo.find(
-      { $and: [match, and] },
-      { activationDeactivationHistory: 0 }
-    )
-      .populate({ path: "assignedBox.boxData", model: "tblOperatorDevice" })
-      .populate({
-        path: "assignedBox.assignedPackage.packageData",
-        model: "tblOperatorPackages",
-      })
-      .sort({ sortId: 1 })
-      .skip(perPage * page - perPage)
-      .limit(perPage)
-      .lean();
-    // let cust = await  TblCustomerInfo.find(match,
-    //   {"paymentReceipt" : 0, "invoice" : 0 , "activationDeactivationHistory" : 0 ,"complaints" : 0 , "activationDeactivationRequest" : 0,"ledger" : 0})
-    //   .sort({sortId : 1}).skip((perPage*page)-perPage).limit(perPage).lean()
-
-    let output = cust.map((element) => {
-      return {
-        ...element,
-        assignedBox: element.assignedBox.map((box) => ({
-          ...box.boxData,
-          assignedPackage: box.assignedPackage.map((package) => ({
-            _id: box._id,
-            ...package.packageData,
-            startDate: package.startDate,
-            endDate: package.endDate,
-            status: package.status,
-          })),
-        })),
-      };
-    });
-
-    resolve(output);
-  });
-}
-const getLatestInvoice = async (customerId) => {
-  // return await tblCustomerInvoice.findOne({customerId: mongoose.Types.ObjectId(customerId)},null,{ sort: { month: -1 } },)
-  return await tblCustomerInvoice.aggregate([
-    {
-      $match: {
-        customerId: mongoose.Types.ObjectId(customerId),
-      },
-    },
-    {
-      $unwind: "$packages",
-    },
-    {
-      $lookup: {
-        from: "tblOperatorPackages",
-        localField: "packages._id",
-        foreignField: "_id",
-        as: "packages._id",
-      },
-    },
-    {
-      $sort: {
-        month: -1,
-      },
-    },
-    {
-      $limit: 1,
-    },
-  ]);
-};
-const getReceiptNumber = async (operatorId) => {
-  return await TblOperator.findOneAndUpdate(
-    { operatorId: operatorId },
-    { $inc: { receiptNumber: 1 } },
-    {
-      fields: { receiptNumber: 1, _id: 0 },
-    }
-  );
-};
-const updateCustomerDue = async (customerId, paidAmount, totalDue, type) => {
-  let inc = {};
-  switch (type) {
-    case "Payment":
-      inc = { due: -paidAmount };
-      break;
-    case "Adjustment":
-      inc = { due: +paidAmount };
-      break;
-    case "Discount":
-      inc = { due: -paidAmount };
-      break;
-    default:
-      inc = { due: -paidAmount };
-      break;
-  }
-  return await TblCustomerInfo.updateOne(
-    { _id: mongoose.Types.ObjectId(customerId) },
-    {
-      $set: {
-        dueString: totalDue + "",
-      },
-      $inc: inc,
-    }
-  );
-};
-const updateDeviceStatus = async (deviceId) => {
-  return await tblOperatorDevice.updateOne(
-    { _id: deviceId },
-    {
-      $set: {
-        status: 3,
-        activeStatus: "ACTIVE",
-      },
-    }
-  );
-};
-const createInvoice = async (newCustomer, forIndex, discount) => {
-  return new Promise(async (resolve, reject) => {
-    let dateTillToday = [];
-    let d = new Date();
-    let invoicePrefix = getReceiptPrefix();
-
-    // let currentDate = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
-    // dateTillToday.push(currentDate)
-    for (let index = forIndex; index <= d.getDate(); index++) {
-      let currentDate =
-        ("0" + index).slice(-2) +
-        "/" +
-        ("0" + (d.getMonth() + 1)).slice(-2) +
-        "/" +
-        d.getFullYear();
-      dateTillToday.push(currentDate);
-    }
-    let result = await TblCustomerInfo.aggregate([
+    let cust = await TblCustomerInfo.aggregate([
       {
-        $match: {
-          status: 2,
-          _id: newCustomer._id,
+        $addFields: {
+          custNameLower: { $toLower: "$custName" },
+          operatorCustIdLower: { $toLower: "$operatorCustId" },
+          contactLower: { $toLower: "$contact" },
+          areaLower: { $toLower: "$area" },
+          houseNameLower: { $toLower: "$houseName" },
+          custTypeLower: { $toLower: "$custType" },
         },
       },
       {
-        $unwind: "$assignedBox",
+        $match: match,
       },
       {
-        $match: {
-          "assignedBox.status": 1,
+        $match: and,
+      },
+      {
+        $unwind: {
+          path: "$assignedBox",
         },
       },
       {
-        $unwind: "$assignedBox.assignedPackage",
-      },
-      {
-        $match: {
-          "assignedBox.assignedPackage.endDate": { $in: dateTillToday },
-          "assignedBox.assignedPackage.status": 1,
+        $unwind: {
+          path: "$assignedBox.assignedPackage",
         },
       },
       {
         $lookup: {
-          from: "tblOperatorPackages",
+          from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+          localField: "assignedBox.boxData",
+          foreignField: "_id",
+          as: "boxData",
+        },
+      },
+      {
+        $unwind: {
+          path: "$boxData",
+        },
+      },
+      {
+        $lookup: {
+          from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
           localField: "assignedBox.assignedPackage.packageData",
           foreignField: "_id",
-          as: "assignedBox.assignedPackage.assignedPackageData",
+          as: "assignedPackageData",
+        },
+      },
+      {
+        $unwind: {
+          path: "$assignedPackageData",
         },
       },
       {
@@ -2141,259 +1959,622 @@ const createInvoice = async (newCustomer, forIndex, discount) => {
           from: "tblOperatorInvoiceTypeData",
           localField: "assignedBox.assignedPackage.invoiceTypeId",
           foreignField: "_id",
-          as: "assignedBox.assignedPackage.invoiceTypeId",
+          as: "invoiceData",
         },
       },
       {
-        $project: {
-          custName: 0,
-          contact: 0,
-          email: 0,
-          perAddress: 0,
-          initAddress: 0,
-          area: 0,
-          city: 0,
-          state: 0,
-          pin: 0,
-          createDate: 0,
-          activationDate: 0,
-          houseName: 0,
-          custCategory: 0,
-          gstNo: 0,
-          custType: 0,
-          activationDeactivationHistory: 0,
-          sortId: 0,
-          autoCustId: 0,
-          autoCustIdString: 0,
+        $unwind: {
+          path: "$invoiceData",
         },
       },
+      {
+        $set: {
+          assignedBox: [
+            {
+              $mergeObjects: [
+                "$boxData",
+                {
+                  assignedPackage: [
+                    {
+                      $mergeObjects: [
+                        "$assignedPackageData",
+                        "$assignedBox.assignedPackage",
+                        {
+                          invoiceTypeId: "$invoiceData",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        $unwind: "$assignedBox", // Unwind the "assignedBox" array
+      },
+      {
+        $group: {
+          _id: "$_id",
+          operatorId: { $first: "$operatorId" },
+          operatorCustId: { $first: "$operatorCustId" },
+          custName: { $first: "$custName" },
+          contact: { $first: "$contact" },
+          // Add other fields you want to preserve from the original document
+
+          assignedBox: { $push: "$assignedBox" }, // Merge the "assignedBox" objects into a single array
+        },
+      },
+      { $sort: { autoCustId: 1 } },
+      {
+        $project: {
+          activationDeactivationHistory: 0,
+        },
+      },
+
+      {
+        $skip: perPage * page - perPage,
+      },
+      {
+        $limit: perPage,
+      },
     ]);
-    if (result.length > 0) {
-      const offer = _.filter(result, function (resultPackage) {
-        return resultPackage.assignedBox.assignedPackage.freeTier > 0;
-      });
+    // let cust = await  TblCustomerInfo.find({$and:[match,and]},
+    //   {"activationDeactivationHistory" : 0 })
+    //   .populate({path:'assignedBox.boxData',model:'tblOperatorDevice'}).populate({path:'assignedBox.assignedPackage.packageData',model:'tblOperatorPackages'}).sort({sortId : 1}).skip((perPage*page)-perPage).limit(perPage).lean()
 
-      offer.map(async (item) => {
-        await updateFreeTier(item);
-      });
+    //   let output = cust.map(element => {
+    //     return ({
+    //         ...element,
+    //         assignedBox:element.assignedBox.map(box=>({
+    //             ...box.boxData,
+    //             assignedPackage:box.assignedPackage.map(package=>({
+    //               _id:box._id,
+    //                 ...package.packageData,
+    //                 startDate:package.startDate,
+    //                 endDate:package.endDate,
+    //                 status:package.status
+    //             })),
 
-      let reStructureData = await getReStructureData(result);
-      let invoice = [];
-      let totalDue = newCustomer.due;
+    //         }))
+    //     })
+    // })
 
-      for (let item of reStructureData) {
-        totalDue = totalDue + item.totalSubscription;
-
-        let findData = _.find(invoice, function (res) {
-          return res.month == item.month;
-        });
-        if (findData) {
-          findData.subscriptionAmount =
-            findData.subscriptionAmount + item.subscriptionAmount;
-          findData.cgst = findData.cgst + item.cgst;
-          findData.sgst = findData.sgst + item.sgst;
-          findData.totalSubscription =
-            findData.totalSubscription + item.totalSubscription;
-          findData.packages = [...findData.packages, ...item.packages];
-        } else {
-          let latestNumber = await getInvoiceNumber(item.operatorId);
-          let fullInvoiceNumber = `${latestNumber.invoiceNumber}/${invoicePrefix}`;
-          invoice.push({
-            _id: mongoose.Types.ObjectId(),
-            operatorId: item.operatorId,
-            customerId: item.customerId,
-            invoiceNumber: fullInvoiceNumber,
-            month: item.month,
-            subscriptionAmount: item.subscriptionAmount,
-            cgst: item.cgst,
-            sgst: item.sgst,
-            totalSubscription: item.totalSubscription,
-            discount: discount ? item.discount : 0,
-            previousDue: item.previousDue,
-            packages: item.packages,
-            status: item.status,
-          });
-        }
-      }
-      // Promise.all(createInvoiceData).then(async () => {
-      let created = await createCustomerInvoice(invoice);
-      created.map(async (invoiceCreate) => {
-        let monthlyStatemenetData = {
-          _id: mongoose.Types.ObjectId(),
-          operatorId: invoiceCreate.operatorId,
-          customerId: invoiceCreate.customerId,
-          createdDate: moment(new Date(), moment.ISO_8601).format("DD/MM/YYYY"),
-          particulars: "",
-          transactionType: "Invoice",
-          transactionId: invoiceCreate.invoiceNumber,
-          previousDue: invoiceCreate.previousDue,
-          debit: 0,
-          credit: invoiceCreate.totalSubscription,
-          discount: invoiceCreate.discount,
-          balance:
-            invoiceCreate.previousDue +
-            invoiceCreate.totalSubscription -
-            invoiceCreate.discount,
-          status: 1,
-        };
-        await createCustomerMonthlyStatement(monthlyStatemenetData);
-      });
-      // })
-
-      const requestsUpdate = reStructureData.map(async (item) => {
-        await updateCustomerAndDue(item);
-      });
-      Promise.all(requestsUpdate).then(async () => {
-        let dueAfterDiscount = totalDue;
-        if (discount) {
-          dueAfterDiscount = totalDue - newCustomer.discount;
-        }
-
-        const requests = await updateDueAfterDiscount(
-          newCustomer._id,
-          dueAfterDiscount
-        );
-        resolve([requests]);
-      });
-    } else {
-      let due = 0;
-
-      const requests = await updateCustomer(newCustomer, due);
-
-      resolve([requests]);
-    }
+    resolve(cust);
   });
-};
+}
 
-const getReceiptPrefix = () => {
-  let d = new Date();
-  let invoicePrefix;
-  let currentMonth = d.getMonth();
-  let currentYear = d.getFullYear().toString().substring(2);
-  if (currentMonth < 3) {
-    currentYear = parseInt(currentYear) - 1;
-  } else {
-    currentYear = parseInt(currentYear);
-  }
-  invoicePrefix = `${currentYear}_${currentYear + 1}`;
-  return invoicePrefix;
-};
-const updateFreeTier = async (items) => {
-  let inc = {};
+// router.post("/customer/add", AuthMiddleware.verifyToken, async (req, res) => {
+//   const {
+//     operatorCustId,
+//     gstNo,
+//     custName,
+//     custLastName,
+//     houseName,
+//     contact,
+//     altContact,
+//     email,
+//     perAddress,
+//     initAddress,
+//     city,
+//     state,
+//     pin,
+//     createDate,
+//     area,
+//     remarks,
+//     custType,
+//     discount,
+//     assignedDevices,
+//   } = req.body.data;
+//   let responseArray = {};
+//   let assignedBox = assignedDevices.map((item) => ({
+//     boxData: item.selectedDevice._id,
+//     status: 1,
+//     assignedPackage: [
+//       {
+//         packageData: item.selectedPackage._id,
+//         invoiceTypeId: item.invoiceType,
+//         startDate: item.activationDate,
+//         endDate: item.activationDate,
+//         freeTier: item.freeTier === "Nil" ? 0 : parseInt(item.freeTier),
+//         status: 1,
+//       },
+//     ],
+//   }));
 
-  let freeTier = items.assignedBox.assignedPackage.freeTier;
-  if (freeTier > 0) {
-    inc = { "assignedBox.$[box].assignedPackage.$[package].freeTier": -1 };
-  }
+//   let newCustomer = await TblCustomerInfo.create({
+//     _id: mongoose.Types.ObjectId(),
+//     operatorId: req.user.userData.operatorId,
+//     autoCustIdString: "",
+//     operatorCustId: operatorCustId,
+//     custName: custName,
+//     custLastName: custLastName,
+//     contact: contact,
+//     altContact: altContact,
+//     email: email,
+//     perAddress: perAddress,
+//     initAddress: initAddress,
+//     area: area,
+//     custType: custType,
+//     city: city,
+//     state: state,
+//     pin: pin,
+//     createDate: createDate,
+//     createTime: new Date().toLocaleTimeString(),
+//     activationDate: createDate,
+//     houseName: houseName,
+//     gstNo: gstNo,
+//     assignedBox: assignedBox,
+//     due: 0,
+//     dueString: "0",
+//     remarks: remarks,
+//     discount: discount === null ? 0 : discount,
+//     status: 2,
+//   });
+//   assignedDevices.map(async (item) => {
+//     await updateDeviceStatus(item.selectedDevice._id);
+//   });
+//   const requests = await createInvoice(newCustomer, 1, req.body.discount);
 
-  return await TblCustomerInfo.updateOne(
-    { _id: items._id },
-    {
-      $inc: inc,
-    },
-    {
-      arrayFilters: [
-        { "box.boxData": mongoose.Types.ObjectId(items.assignedBox.boxData) },
-        {
-          "package.packageData": items.assignedBox.assignedPackage.packageData,
-        },
-      ],
-    }
-  );
-};
-const getReStructureData = async (result) => {
-  const withoutOffer = _.filter(result, function (res) {
-    return res.assignedBox.assignedPackage.freeTier == 0;
-  });
+//   Promise.all(requests).then(async () => {
+//     let match = {
+//       operatorId: req.user.userData.operatorId,
+//       status: { $ne: 3 },
+//     };
+//     let count = await getCount(match);
+//     // let newData = await TblCustomerInfo.findOne({_id: newCustomer._id}).lean()
+//     responseArray = {
+//       status: true,
+//       message: "Account Create Successfully",
+//       data: count,
+//     };
 
-  return withoutOffer.map((item) => {
-    return {
-      operatorId: item.operatorId,
-      customerId: item._id,
-      month: item.assignedBox.assignedPackage.endDate,
-      subscriptionAmount:
-        item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-      cgst: getGSTAmount(
-        item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-        item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
-      ),
-      sgst: getGSTAmount(
-        item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-        item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
-      ),
-      totalSubscription:
-        item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount,
-      discount: item.discount,
-      previousDue: item.due,
-      packages: [
-        {
-          _id: item.assignedBox.assignedPackage.packageData,
-          packageName:
-            item.assignedBox.assignedPackage.assignedPackageData[0].packageName,
-          packageAmount:
-            item.assignedBox.assignedPackage.assignedPackageData[0]
-              .packageAmount,
-          tax: item.assignedBox.assignedPackage.assignedPackageData[0].tax,
-          withTaxAmount:
-            item.assignedBox.assignedPackage.assignedPackageData[0]
-              .withTaxAmount,
-          packageType:
-            item.assignedBox.assignedPackage.assignedPackageData[0].packageType,
-          connectionType:
-            item.assignedBox.assignedPackage.assignedPackageData[0]
-              .connectionType,
-          startDate: item.assignedBox.assignedPackage.startDate,
-          endDate: getEndDate(
-            item?.assignedBox?.assignedPackage?.invoiceTypeId,
-            item?.assignedBox?.assignedPackage?.endDate
-          ),
-        },
-      ],
-      status: 1,
-      assignedBox: item.assignedBox,
-    };
-  });
-};
-const getGSTAmount = (withoutTax, withTax) => {
-  return (parseFloat(withTax) - parseFloat(withoutTax)) / 2;
-};
-const getEndDate = (invoiceTypeId, endDate) => {
-  let splitDate = endDate.split("/");
-  let formatDate = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}`;
-  let d = new Date(formatDate);
-  let datestring = "";
+//     res.send(responseArray);
+//   });
+// });
+// function getCount(match) {
+//   return new Promise(async (resolve, reject) => {
+//     let countMap = await TblCustomerInfo.aggregate([
+//       {
+//         $match: match,
+//       },
+//     ]);
 
-  const { duration, durationType } = invoiceTypeId[0];
+//     resolve(countMap.length);
+//   });
+// }
+// function getCustomerManage(request, response, operatorId, count, match, and) {
+//   return new Promise(async (resolve, reject) => {
+//     var post = request.body;
+//     let perPage;
+//     let page;
+//     if (post.rowsPerPage != "All") {
+//       perPage = parseInt(post.rowsPerPage);
+//       page = Math.max(0, post.page);
+//     } else {
+//       perPage = parseInt(count);
+//       page = Math.max(0, post.page);
+//     }
 
-  if (durationType === "Month") {
-    datestring = moment(d, moment.ISO_8601)
-      .add(parseInt(duration), "months")
-      .format("DD/MM/YYYY");
-  }
-  if (durationType === "Day") {
-    datestring = moment(d, moment.ISO_8601)
-      .add(parseInt(duration), "days")
-      .format("DD/MM/YYYY");
-  }
-  return datestring;
-};
-const getInvoiceNumber = async (operatorId) => {
-  return await TblOperator.findOneAndUpdate(
-    { operatorId: operatorId },
-    { $inc: { invoiceNumber: 1 } },
-    {
-      fields: { invoiceNumber: 1, _id: 0 },
-    }
-  );
-};
-const createCustomerInvoice = async (item) => {
-  return await tblCustomerInvoice.create(item);
+//     let cust = await TblCustomerInfo.find(
+//       { $and: [match, and] },
+//       { activationDeactivationHistory: 0 }
+//     )
+//       .populate({ path: "assignedBox.boxData", model: "tblOperatorDevice" })
+//       .populate({
+//         path: "assignedBox.assignedPackage.packageData",
+//         model: "tblOperatorPackages",
+//       })
+//       .sort({ custName: 1 })
+//       .skip(perPage * page - perPage)
+//       .limit(perPage)
+//       .lean();
+//     // let cust = await  TblCustomerInfo.find(match,
+//     //   {"paymentReceipt" : 0, "invoice" : 0 , "activationDeactivationHistory" : 0 ,"complaints" : 0 , "activationDeactivationRequest" : 0,"ledger" : 0})
+//     //   .sort({sortId : 1}).skip((perPage*page)-perPage).limit(perPage).lean()
 
-  // return
-};
-const createCustomerMonthlyStatement = async (createData) => {
-  return await tblCustomerMonthlyStatement.create(createData);
-};
+//     let output = cust.map((element) => {
+//       return {
+//         ...element,
+//         assignedBox: element.assignedBox.map((box) => ({
+//           ...box.boxData,
+//           assignedPackage: box.assignedPackage.map((package) => ({
+//             _id: box._id,
+//             ...package.packageData,
+//             startDate: package.startDate,
+//             endDate: package.endDate,
+//             status: package.status,
+//           })),
+//         })),
+//       };
+//     });
+
+//     resolve(output);
+//   });
+// }
+// const getLatestInvoice = async (customerId) => {
+//   // return await tblCustomerInvoice.findOne({customerId: mongoose.Types.ObjectId(customerId)},null,{ sort: { month: -1 } },)
+//   return await tblCustomerInvoice.aggregate([
+//     {
+//       $match: {
+//         customerId: mongoose.Types.ObjectId(customerId),
+//       },
+//     },
+//     {
+//       $unwind: "$packages",
+//     },
+//     {
+//       $lookup: {
+//         from: "tblOperatorPackages",
+//         localField: "packages._id",
+//         foreignField: "_id",
+//         as: "packages._id",
+//       },
+//     },
+//     {
+//       $sort: {
+//         month: -1,
+//       },
+//     },
+//     {
+//       $limit: 1,
+//     },
+//   ]);
+// };
+// const getReceiptNumber = async (operatorId) => {
+//   return await TblOperator.findOneAndUpdate(
+//     { operatorId: operatorId },
+//     { $inc: { receiptNumber: 1 } },
+//     {
+//       fields: { receiptNumber: 1, _id: 0 },
+//     }
+//   );
+// };
+// const updateCustomerDue = async (customerId, paidAmount, totalDue, type) => {
+//   let inc = {};
+//   switch (type) {
+//     case "Payment":
+//       inc = { due: -paidAmount };
+//       break;
+//     case "Adjustment":
+//       inc = { due: +paidAmount };
+//       break;
+//     case "Discount":
+//       inc = { due: -paidAmount };
+//       break;
+//     default:
+//       inc = { due: -paidAmount };
+//       break;
+//   }
+//   return await TblCustomerInfo.updateOne(
+//     { _id: mongoose.Types.ObjectId(customerId) },
+//     {
+//       $set: {
+//         dueString: totalDue + "",
+//       },
+//       $inc: inc,
+//     }
+//   );
+// };
+// const updateDeviceStatus = async (deviceId) => {
+//   return await tblOperatorDevice.updateOne(
+//     { _id: deviceId },
+//     {
+//       $set: {
+//         status: 3,
+//         activeStatus: "ACTIVE",
+//       },
+//     }
+//   );
+// };
+// const createInvoice = async (newCustomer, forIndex, discount) => {
+//   return new Promise(async (resolve, reject) => {
+//     let dateTillToday = [];
+//     let d = new Date();
+//     let invoicePrefix = getReceiptPrefix();
+
+//     // let currentDate = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
+//     // dateTillToday.push(currentDate)
+//     for (let index = forIndex; index <= d.getDate(); index++) {
+//       let currentDate =
+//         ("0" + index).slice(-2) +
+//         "/" +
+//         ("0" + (d.getMonth() + 1)).slice(-2) +
+//         "/" +
+//         d.getFullYear();
+//       dateTillToday.push(currentDate);
+//     }
+//     let result = await TblCustomerInfo.aggregate([
+//       {
+//         $match: {
+//           status: 2,
+//           _id: newCustomer._id,
+//         },
+//       },
+//       {
+//         $unwind: "$assignedBox",
+//       },
+//       {
+//         $match: {
+//           "assignedBox.status": 1,
+//         },
+//       },
+//       {
+//         $unwind: "$assignedBox.assignedPackage",
+//       },
+//       {
+//         $match: {
+//           "assignedBox.assignedPackage.endDate": { $in: dateTillToday },
+//           "assignedBox.assignedPackage.status": 1,
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "tblOperatorPackages",
+//           localField: "assignedBox.assignedPackage.packageData",
+//           foreignField: "_id",
+//           as: "assignedBox.assignedPackage.assignedPackageData",
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "tblOperatorInvoiceTypeData",
+//           localField: "assignedBox.assignedPackage.invoiceTypeId",
+//           foreignField: "_id",
+//           as: "assignedBox.assignedPackage.invoiceTypeId",
+//         },
+//       },
+//       {
+//         $project: {
+//           custName: 0,
+//           contact: 0,
+//           email: 0,
+//           perAddress: 0,
+//           initAddress: 0,
+//           area: 0,
+//           city: 0,
+//           state: 0,
+//           pin: 0,
+//           createDate: 0,
+//           activationDate: 0,
+//           houseName: 0,
+//           custCategory: 0,
+//           gstNo: 0,
+//           custType: 0,
+//           activationDeactivationHistory: 0,
+//           sortId: 0,
+//           autoCustId: 0,
+//           autoCustIdString: 0,
+//         },
+//       },
+//     ]);
+//     if (result.length > 0) {
+//       const offer = _.filter(result, function (resultPackage) {
+//         return resultPackage.assignedBox.assignedPackage.freeTier > 0;
+//       });
+
+//       offer.map(async (item) => {
+//         await updateFreeTier(item);
+//       });
+
+//       let reStructureData = await getReStructureData(result);
+//       let invoice = [];
+//       let totalDue = newCustomer.due;
+
+//       for (let item of reStructureData) {
+//         totalDue = totalDue + item.totalSubscription;
+
+//         let findData = _.find(invoice, function (res) {
+//           return res.month == item.month;
+//         });
+//         if (findData) {
+//           findData.subscriptionAmount =
+//             findData.subscriptionAmount + item.subscriptionAmount;
+//           findData.cgst = findData.cgst + item.cgst;
+//           findData.sgst = findData.sgst + item.sgst;
+//           findData.totalSubscription =
+//             findData.totalSubscription + item.totalSubscription;
+//           findData.packages = [...findData.packages, ...item.packages];
+//         } else {
+//           let latestNumber = await getInvoiceNumber(item.operatorId);
+//           let fullInvoiceNumber = `${latestNumber.invoiceNumber}/${invoicePrefix}`;
+//           invoice.push({
+//             _id: mongoose.Types.ObjectId(),
+//             operatorId: item.operatorId,
+//             customerId: item.customerId,
+//             invoiceNumber: fullInvoiceNumber,
+//             month: item.month,
+//             subscriptionAmount: item.subscriptionAmount,
+//             cgst: item.cgst,
+//             sgst: item.sgst,
+//             totalSubscription: item.totalSubscription,
+//             discount: discount ? item.discount : 0,
+//             previousDue: item.previousDue,
+//             packages: item.packages,
+//             status: item.status,
+//           });
+//         }
+//       }
+//       // Promise.all(createInvoiceData).then(async () => {
+//       let created = await createCustomerInvoice(invoice);
+//       created.map(async (invoiceCreate) => {
+//         let monthlyStatemenetData = {
+//           _id: mongoose.Types.ObjectId(),
+//           operatorId: invoiceCreate.operatorId,
+//           customerId: invoiceCreate.customerId,
+//           createdDate: moment(new Date(), moment.ISO_8601).format("DD/MM/YYYY"),
+//           particulars: "",
+//           transactionType: "Invoice",
+//           transactionId: invoiceCreate.invoiceNumber,
+//           previousDue: invoiceCreate.previousDue,
+//           debit: 0,
+//           credit: invoiceCreate.totalSubscription,
+//           discount: invoiceCreate.discount,
+//           balance:
+//             invoiceCreate.previousDue +
+//             invoiceCreate.totalSubscription -
+//             invoiceCreate.discount,
+//           status: 1,
+//         };
+//         await createCustomerMonthlyStatement(monthlyStatemenetData);
+//       });
+//       // })
+
+//       const requestsUpdate = reStructureData.map(async (item) => {
+//         await updateCustomerAndDue(item);
+//       });
+//       Promise.all(requestsUpdate).then(async () => {
+//         let dueAfterDiscount = totalDue;
+//         if (discount) {
+//           dueAfterDiscount = totalDue - newCustomer.discount;
+//         }
+
+//         const requests = await updateDueAfterDiscount(
+//           newCustomer._id,
+//           dueAfterDiscount
+//         );
+//         resolve([requests]);
+//       });
+//     } else {
+//       let due = 0;
+
+//       const requests = await updateCustomer(newCustomer, due);
+
+//       resolve([requests]);
+//     }
+//   });
+// };
+
+// const getReceiptPrefix = () => {
+//   let d = new Date();
+//   let invoicePrefix;
+//   let currentMonth = d.getMonth();
+//   let currentYear = d.getFullYear().toString().substring(2);
+//   if (currentMonth < 3) {
+//     currentYear = parseInt(currentYear) - 1;
+//   } else {
+//     currentYear = parseInt(currentYear);
+//   }
+//   invoicePrefix = `${currentYear}_${currentYear + 1}`;
+//   return invoicePrefix;
+// };
+// const updateFreeTier = async (items) => {
+//   let inc = {};
+
+//   let freeTier = items.assignedBox.assignedPackage.freeTier;
+//   if (freeTier > 0) {
+//     inc = { "assignedBox.$[box].assignedPackage.$[package].freeTier": -1 };
+//   }
+
+//   return await TblCustomerInfo.updateOne(
+//     { _id: items._id },
+//     {
+//       $inc: inc,
+//     },
+//     {
+//       arrayFilters: [
+//         { "box.boxData": mongoose.Types.ObjectId(items.assignedBox.boxData) },
+//         {
+//           "package.packageData": items.assignedBox.assignedPackage.packageData,
+//         },
+//       ],
+//     }
+//   );
+// };
+// const getReStructureData = async (result) => {
+//   const withoutOffer = _.filter(result, function (res) {
+//     return res.assignedBox.assignedPackage.freeTier == 0;
+//   });
+
+//   return withoutOffer.map((item) => {
+//     return {
+//       operatorId: item.operatorId,
+//       customerId: item._id,
+//       month: item.assignedBox.assignedPackage.endDate,
+//       subscriptionAmount:
+//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
+//       cgst: getGSTAmount(
+//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
+//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
+//       ),
+//       sgst: getGSTAmount(
+//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
+//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
+//       ),
+//       totalSubscription:
+//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount,
+//       discount: item.discount,
+//       previousDue: item.due,
+//       packages: [
+//         {
+//           _id: item.assignedBox.assignedPackage.packageData,
+//           packageName:
+//             item.assignedBox.assignedPackage.assignedPackageData[0].packageName,
+//           packageAmount:
+//             item.assignedBox.assignedPackage.assignedPackageData[0]
+//               .packageAmount,
+//           tax: item.assignedBox.assignedPackage.assignedPackageData[0].tax,
+//           withTaxAmount:
+//             item.assignedBox.assignedPackage.assignedPackageData[0]
+//               .withTaxAmount,
+//           packageType:
+//             item.assignedBox.assignedPackage.assignedPackageData[0].packageType,
+//           connectionType:
+//             item.assignedBox.assignedPackage.assignedPackageData[0]
+//               .connectionType,
+//           startDate: item.assignedBox.assignedPackage.startDate,
+//           endDate: getEndDate(
+//             item?.assignedBox?.assignedPackage?.invoiceTypeId,
+//             item?.assignedBox?.assignedPackage?.endDate
+//           ),
+//         },
+//       ],
+//       status: 1,
+//       assignedBox: item.assignedBox,
+//     };
+//   });
+// };
+// const getGSTAmount = (withoutTax, withTax) => {
+//   return (parseFloat(withTax) - parseFloat(withoutTax)) / 2;
+// };
+// const getEndDate = (invoiceTypeId, endDate) => {
+//   let splitDate = endDate.split("/");
+//   let formatDate = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}`;
+//   let d = new Date(formatDate);
+//   let datestring = "";
+
+//   const { duration, durationType } = invoiceTypeId[0];
+
+//   if (durationType === "Month") {
+//     datestring = moment(d, moment.ISO_8601)
+//       .add(parseInt(duration), "months")
+//       .format("DD/MM/YYYY");
+//   }
+//   if (durationType === "Day") {
+//     datestring = moment(d, moment.ISO_8601)
+//       .add(parseInt(duration), "days")
+//       .format("DD/MM/YYYY");
+//   }
+//   return datestring;
+// };
+// const getInvoiceNumber = async (operatorId) => {
+//   return await TblOperator.findOneAndUpdate(
+//     { operatorId: operatorId },
+//     { $inc: { invoiceNumber: 1 } },
+//     {
+//       fields: { invoiceNumber: 1, _id: 0 },
+//     }
+//   );
+// };
+// const createCustomerInvoice = async (item) => {
+//   return await tblCustomerInvoice.create(item);
+
+//   // return
+// };
+// const createCustomerMonthlyStatement = async (createData) => {
+//   return await tblCustomerMonthlyStatement.create(createData);
+// };
 const updateCustomerAndDue = async (item) => {
   return await TblCustomerInfo.updateOne(
     { _id: item._id },
