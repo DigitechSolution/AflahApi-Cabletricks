@@ -25,6 +25,8 @@ const { resolve } = require("path");
 const { rejects } = require("assert");
 const tblBankOperation = require("../Model/BankOperation");
 const tblCustomerInfo = require("../Model/CustomerInfo");
+const tblOperatorInfo = require("../Model/OperatorInfo");
+const tblLogin = require("../Model/Login");
 router.post("/", async (request, response) => {
   await authentication(request, response);
 });
@@ -476,10 +478,13 @@ router.get(
   "/getPaidCustomerDetails",
   AuthMiddleware.verifyToken,
   async (req, res) => {
-    const date = new Date(req.body.date);
-    console.log(date);
-    const month = date.getMonth() + 1; // add 1 because $month operator returns 1-12
-    const year = date.getFullYear();
+    const date = req.body.date;
+    // const date = new Date(req.body.date);
+    let parts = date.split("/");
+
+    // Extract the year and month
+    let year = parseInt(parts[2]);
+    let month = parseInt(parts[1]);
     let operatorId = req.user.userData.operatorId;
     try {
       const response = await tblCustomerReceipt.aggregate([
@@ -593,6 +598,11 @@ router.get(
           },
         },
         {
+          $unwind: {
+            path: "$userDetails.assignedBox",
+          },
+        },
+        {
           $group: {
             _id: "$userDetails._id",
             userDetails: { $first: "$userDetails" },
@@ -610,11 +620,6 @@ router.get(
                 currentDue: "$currentDue",
               },
             },
-          },
-        },
-        {
-          $unwind: {
-            path: "$assignedBox",
           },
         },
         {
@@ -1077,6 +1082,62 @@ router.get(
 
 /// get expired package list ////
 
+///////
+// router.put(
+//   "/updatePersonalDetailsInOperatorInfo/:id",
+//   AuthMiddleware.verifyToken,
+//   async (req, res) => {
+//     const operatorId = req.user.userData.operatorId;
+//     const { details } = req.body;
+
+//     try {
+//       const updatedOperatorInfo = await tblOperatorInfo.findByIdAndUpdate(
+//         req.params.id,
+//         { $set: details },
+//         { new: true }
+//       );
+//       if (req.body.password) {
+//         const updatedLogin = await tblLogin.findOneAndUpdate(
+//           { loginId: operatorId },
+//           { $set: req.body.password },
+//           { new: true }
+//         );
+//       }
+//     } catch (error) {}
+//   }
+// );
+router.put(
+  "/updatePersonalDetailsInOperatorInfo/:id",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const operatorId = req.user.userData.operatorId;
+    const { details, password } = req.body;
+
+    try {
+      const updatedOperatorInfo = await tblOperatorInfo.findByIdAndUpdate(
+        req.params.id,
+        { $set: details },
+        { new: true }
+      );
+
+      if (password) {
+        const updatedLogin = await tblLogin.findOneAndUpdate(
+          { loginId: operatorId },
+          { $set: { password } },
+          { new: true }
+        );
+      }
+
+      res.status(200).json({ success: true, message: "Update successful" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: "Update failed" });
+    }
+  }
+);
+
+///////
+
 /// get area ways customerReceipt details  ///
 
 router.get(
@@ -1375,6 +1436,612 @@ function getConnectionInvoiceDetails(request, response, operatorId) {
       });
   });
 }
+
+router.post(
+  "/operator/reports/collections",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    var post = req.body;
+    let perPage;
+    let page;
+    const pin = post.moreFilter;
+    let match = {};
+    perPage = parseInt(post.rowsPerPage);
+    page = Math.max(0, post.page);
+    if (post.range != "undefined") {
+      let split = post.range.split("-");
+      startDate = split[0].replace(/\s/g, "");
+      endDate = split[1].replace(/\s/g, "");
+    }
+    console.log(startDate, endDate);
+    let operatorId = req.user.userData.operatorId;
+    match.operatorId = operatorId;
+    switch (post.filter) {
+      case "Employee":
+        match.collectionStaff = pin;
+        break;
+      case "Cash":
+        match.paymentMode = post.filter;
+        break;
+      case "Online":
+        match.paymentMode = post.filter;
+        break;
+      case "Discount":
+        match.paymentType = post.filter;
+        break;
+      default:
+        break;
+    }
+    try {
+      const total = await tblCustomerReceipt.aggregate([
+        {
+          $match: match,
+        },
+        {
+          $match: {
+            $expr: {
+              $and: [
+                {
+                  $gte: [
+                    {
+                      $dateFromString: {
+                        dateString: { $toString: "$createdAt" },
+                      },
+                    },
+                    {
+                      $dateFromString: {
+                        dateString: {
+                          $concat: [
+                            { $substr: [startDate, 6, 4] },
+                            "-", //Extract year
+                            { $substr: [startDate, 3, 2] },
+                            "-", //Extract month
+                            { $substr: [startDate, 0, 2] }, //Extract day
+                            "T00:00:00Z",
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+                {
+                  $lte: [
+                    {
+                      $dateFromString: {
+                        dateString: { $toString: "$createdAt" },
+                      },
+                    },
+                    {
+                      $dateFromString: {
+                        dateString: {
+                          $concat: [
+                            { $substr: [endDate, 6, 4] },
+                            "-", //Extract year
+                            { $substr: [endDate, 3, 2] },
+                            "-", //Extract month
+                            { $substr: [endDate, 0, 2] }, //Extract day
+                            "T00:00:00Z",
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            sum_val: { $sum: "$amount" },
+            balance_val: { $sum: "$currentDue" },
+          },
+        },
+      ]);
+      // const count = await tblCustomerReceipt.aggregate([
+      //   {
+      //     $match: match,
+      //   },
+      //   {
+      //     $match: {
+      //       $expr: {
+      //         $and: [
+      //           {
+      //             $gte: [
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: { $toString: "$createdAt" },
+      //                 },
+      //               },
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: {
+      //                     $concat: [
+      //                       { $substr: [startDate, 6, 4] },
+      //                       "-", //Extract year
+      //                       { $substr: [startDate, 3, 2] },
+      //                       "-", //Extract month
+      //                       { $substr: [startDate, 0, 2] }, //Extract day
+      //                       "T00:00:00Z",
+      //                     ],
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //           {
+      //             $lte: [
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: { $toString: "$createdAt" },
+      //                 },
+      //               },
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: {
+      //                     $concat: [
+      //                       { $substr: [endDate, 6, 4] },
+      //                       "-", //Extract year
+      //                       { $substr: [endDate, 3, 2] },
+      //                       "-", //Extract month
+      //                       { $substr: [endDate, 0, 2] }, //Extract day
+      //                       "T00:00:00Z",
+      //                     ],
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //         ],
+      //       },
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblCustomerInfo",
+      //       localField: "customerId",
+      //       foreignField: "_id",
+      //       as: "userDetails",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$userDetails",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+      //       localField: "userDetails.assignedBox.boxData",
+      //       foreignField: "_id",
+      //       as: "boxData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$boxData",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+      //       localField: "userDetails.assignedBox.assignedPackage.packageData",
+      //       foreignField: "_id",
+      //       as: "assignedPackageData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$assignedPackageData",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorInvoiceTypeData",
+      //       localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+      //       foreignField: "_id",
+      //       as: "invoiceData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$invoiceData",
+      //     },
+      //   },
+      //   {
+      //     $set: {
+      //       "userDetails.assignedBox": {
+      //         $map: {
+      //           input: "$userDetails.assignedBox",
+      //           as: "box",
+      //           in: {
+      //             $mergeObjects: [
+      //               "$boxData",
+      //               {
+      //                 assignedPackage: {
+      //                   $map: {
+      //                     input: "$$box.assignedPackage",
+      //                     as: "package",
+      //                     in: {
+      //                       $mergeObjects: [
+      //                         "$assignedPackageData",
+      //                         "$$package",
+      //                         {
+      //                           invoiceTypeId: "$invoiceData",
+      //                         },
+      //                       ],
+      //                     },
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //         },
+      //       },
+      //     },
+      //   },
+      //   {
+      //     $count: "userDetails",
+      //   },
+      // ]);
+      // const response = await tblCustomerReceipt.aggregate([
+      //   {
+      //     $match: match,
+      //   },
+      //   {
+      //     $match: {
+      //       $expr: {
+      //         $and: [
+      //           {
+      //             $gte: [
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: { $toString: "$createdAt" },
+      //                 },
+      //               },
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: {
+      //                     $concat: [
+      //                       { $substr: [startDate, 6, 4] },
+      //                       "-", //Extract year
+      //                       { $substr: [startDate, 3, 2] },
+      //                       "-", //Extract month
+      //                       { $substr: [startDate, 0, 2] }, //Extract day
+      //                       "T00:00:00Z",
+      //                     ],
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //           {
+      //             $lte: [
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: { $toString: "$createdAt" },
+      //                 },
+      //               },
+      //               {
+      //                 $dateFromString: {
+      //                   dateString: {
+      //                     $concat: [
+      //                       { $substr: [endDate, 6, 4] },
+      //                       "-", //Extract year
+      //                       { $substr: [endDate, 3, 2] },
+      //                       "-", //Extract month
+      //                       { $substr: [endDate, 0, 2] }, //Extract day
+      //                       "T00:00:00Z",
+      //                     ],
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //         ],
+      //       },
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblCustomerInfo",
+      //       localField: "customerId",
+      //       foreignField: "_id",
+      //       as: "userDetails",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$userDetails",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+      //       localField: "userDetails.assignedBox.boxData",
+      //       foreignField: "_id",
+      //       as: "boxData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$boxData",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+      //       localField: "userDetails.assignedBox.assignedPackage.packageData",
+      //       foreignField: "_id",
+      //       as: "assignedPackageData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$assignedPackageData",
+      //     },
+      //   },
+      //   {
+      //     $lookup: {
+      //       from: "tblOperatorInvoiceTypeData",
+      //       localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+      //       foreignField: "_id",
+      //       as: "invoiceData",
+      //     },
+      //   },
+      //   {
+      //     $unwind: {
+      //       path: "$invoiceData",
+      //     },
+      //   },
+      //   {
+      //     $set: {
+      //       "userDetails.assignedBox": {
+      //         $map: {
+      //           input: "$userDetails.assignedBox",
+      //           as: "box",
+      //           in: {
+      //             $mergeObjects: [
+      //               "$boxData",
+      //               {
+      //                 assignedPackage: {
+      //                   $map: {
+      //                     input: "$$box.assignedPackage",
+      //                     as: "package",
+      //                     in: {
+      //                       $mergeObjects: [
+      //                         "$assignedPackageData",
+      //                         "$$package",
+      //                         {
+      //                           invoiceTypeId: "$invoiceData",
+      //                         },
+      //                       ],
+      //                     },
+      //                   },
+      //                 },
+      //               },
+      //             ],
+      //           },
+      //         },
+      //       },
+      //     },
+      //   },
+      //   {
+      //     $project: {
+      //       boxData: 0,
+      //       assignedPackageData: 0,
+      //       invoiceData: 0,
+      //       customerId: 0,
+      //       "userDetails.activationDeactivationHistory": 0,
+      //       "userDetails.sortId": 0,
+      //     },
+      //   },
+      //   {
+      //     $skip: perPage * page - perPage,
+      //   },
+      //   {
+      //     $limit: perPage,
+      //   },
+      // ]);
+      const response = await tblCustomerReceipt.aggregate([
+        {
+          $match: match,
+        },
+        {
+          $match: {
+            $expr: {
+              $and: [
+                {
+                  $gte: [
+                    {
+                      $dateFromString: {
+                        dateString: { $toString: "$createdAt" },
+                      },
+                    },
+                    {
+                      $dateFromString: {
+                        dateString: {
+                          $concat: [
+                            { $substr: [startDate, 6, 4] },
+                            "-", //Extract year
+                            { $substr: [startDate, 3, 2] },
+                            "-", //Extract month
+                            { $substr: [startDate, 0, 2] }, //Extract day
+                            "T00:00:00Z",
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+                {
+                  $lte: [
+                    {
+                      $dateFromString: {
+                        dateString: { $toString: "$createdAt" },
+                      },
+                    },
+                    {
+                      $dateFromString: {
+                        dateString: {
+                          $concat: [
+                            { $substr: [endDate, 6, 4] },
+                            "-", //Extract year
+                            { $substr: [endDate, 3, 2] },
+                            "-", //Extract month
+                            { $substr: [endDate, 0, 2] }, //Extract day
+                            "T23:59:59Z", // Use the end of the day
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            paymentType: "Payment",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblCustomerInfo",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorDevice",
+            localField: "userDetails.assignedBox.boxData",
+            foreignField: "_id",
+            as: "boxData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$boxData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages",
+            localField: "userDetails.assignedBox.assignedPackage.packageData",
+            foreignField: "_id",
+            as: "assignedPackageData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedPackageData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            foreignField: "_id",
+            as: "invoiceData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$invoiceData",
+          },
+        },
+        {
+          $set: {
+            "userDetails.assignedBox": {
+              $map: {
+                input: "$userDetails.assignedBox",
+                as: "box",
+                in: {
+                  $mergeObjects: [
+                    "$boxData",
+                    {
+                      assignedPackage: {
+                        $map: {
+                          input: "$$box.assignedPackage",
+                          as: "package",
+                          in: {
+                            $mergeObjects: [
+                              "$assignedPackageData",
+                              "$$package",
+                              {
+                                invoiceTypeId: "$invoiceData",
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            boxData: 0,
+            assignedPackageData: 0,
+            invoiceData: 0,
+            customerId: 0,
+            "userDetails.activationDeactivationHistory": 0,
+            "userDetails.sortId": 0,
+          },
+        },
+        {
+          $facet: {
+            totalCount: [
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            data: [
+              {
+                $skip: perPage * page - perPage,
+              },
+              {
+                $limit: perPage,
+              },
+            ],
+          },
+        },
+      ]);
+      const data = response[0]?.data;
+      const totalCount = response[0]?.totalCount[0]?.count;
+
+      let responseArray = {
+        status: true,
+        message:
+          response.length > 0 ? "Data fetch successfull!" : "No data found!",
+        count: totalCount,
+        sum: total[0]?.sum_val,
+        balance: total[0]?.balance_val,
+        response: data,
+      };
+
+      res.status(200).json(responseArray);
+    } catch (error) {
+      res.status(500).json(error.message);
+    }
+  }
+);
+
 router.post(
   "/getCustomerInfoManage",
   AuthMiddleware.verifyToken,
@@ -2020,561 +2687,10 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
         $limit: perPage,
       },
     ]);
-    // let cust = await  TblCustomerInfo.find({$and:[match,and]},
-    //   {"activationDeactivationHistory" : 0 })
-    //   .populate({path:'assignedBox.boxData',model:'tblOperatorDevice'}).populate({path:'assignedBox.assignedPackage.packageData',model:'tblOperatorPackages'}).sort({sortId : 1}).skip((perPage*page)-perPage).limit(perPage).lean()
-
-    //   let output = cust.map(element => {
-    //     return ({
-    //         ...element,
-    //         assignedBox:element.assignedBox.map(box=>({
-    //             ...box.boxData,
-    //             assignedPackage:box.assignedPackage.map(package=>({
-    //               _id:box._id,
-    //                 ...package.packageData,
-    //                 startDate:package.startDate,
-    //                 endDate:package.endDate,
-    //                 status:package.status
-    //             })),
-
-    //         }))
-    //     })
-    // })
-
     resolve(cust);
   });
 }
 
-// router.post("/customer/add", AuthMiddleware.verifyToken, async (req, res) => {
-//   const {
-//     operatorCustId,
-//     gstNo,
-//     custName,
-//     custLastName,
-//     houseName,
-//     contact,
-//     altContact,
-//     email,
-//     perAddress,
-//     initAddress,
-//     city,
-//     state,
-//     pin,
-//     createDate,
-//     area,
-//     remarks,
-//     custType,
-//     discount,
-//     assignedDevices,
-//   } = req.body.data;
-//   let responseArray = {};
-//   let assignedBox = assignedDevices.map((item) => ({
-//     boxData: item.selectedDevice._id,
-//     status: 1,
-//     assignedPackage: [
-//       {
-//         packageData: item.selectedPackage._id,
-//         invoiceTypeId: item.invoiceType,
-//         startDate: item.activationDate,
-//         endDate: item.activationDate,
-//         freeTier: item.freeTier === "Nil" ? 0 : parseInt(item.freeTier),
-//         status: 1,
-//       },
-//     ],
-//   }));
-
-//   let newCustomer = await TblCustomerInfo.create({
-//     _id: mongoose.Types.ObjectId(),
-//     operatorId: req.user.userData.operatorId,
-//     autoCustIdString: "",
-//     operatorCustId: operatorCustId,
-//     custName: custName,
-//     custLastName: custLastName,
-//     contact: contact,
-//     altContact: altContact,
-//     email: email,
-//     perAddress: perAddress,
-//     initAddress: initAddress,
-//     area: area,
-//     custType: custType,
-//     city: city,
-//     state: state,
-//     pin: pin,
-//     createDate: createDate,
-//     createTime: new Date().toLocaleTimeString(),
-//     activationDate: createDate,
-//     houseName: houseName,
-//     gstNo: gstNo,
-//     assignedBox: assignedBox,
-//     due: 0,
-//     dueString: "0",
-//     remarks: remarks,
-//     discount: discount === null ? 0 : discount,
-//     status: 2,
-//   });
-//   assignedDevices.map(async (item) => {
-//     await updateDeviceStatus(item.selectedDevice._id);
-//   });
-//   const requests = await createInvoice(newCustomer, 1, req.body.discount);
-
-//   Promise.all(requests).then(async () => {
-//     let match = {
-//       operatorId: req.user.userData.operatorId,
-//       status: { $ne: 3 },
-//     };
-//     let count = await getCount(match);
-//     // let newData = await TblCustomerInfo.findOne({_id: newCustomer._id}).lean()
-//     responseArray = {
-//       status: true,
-//       message: "Account Create Successfully",
-//       data: count,
-//     };
-
-//     res.send(responseArray);
-//   });
-// });
-// function getCount(match) {
-//   return new Promise(async (resolve, reject) => {
-//     let countMap = await TblCustomerInfo.aggregate([
-//       {
-//         $match: match,
-//       },
-//     ]);
-
-//     resolve(countMap.length);
-//   });
-// }
-// function getCustomerManage(request, response, operatorId, count, match, and) {
-//   return new Promise(async (resolve, reject) => {
-//     var post = request.body;
-//     let perPage;
-//     let page;
-//     if (post.rowsPerPage != "All") {
-//       perPage = parseInt(post.rowsPerPage);
-//       page = Math.max(0, post.page);
-//     } else {
-//       perPage = parseInt(count);
-//       page = Math.max(0, post.page);
-//     }
-
-//     let cust = await TblCustomerInfo.find(
-//       { $and: [match, and] },
-//       { activationDeactivationHistory: 0 }
-//     )
-//       .populate({ path: "assignedBox.boxData", model: "tblOperatorDevice" })
-//       .populate({
-//         path: "assignedBox.assignedPackage.packageData",
-//         model: "tblOperatorPackages",
-//       })
-//       .sort({ custName: 1 })
-//       .skip(perPage * page - perPage)
-//       .limit(perPage)
-//       .lean();
-//     // let cust = await  TblCustomerInfo.find(match,
-//     //   {"paymentReceipt" : 0, "invoice" : 0 , "activationDeactivationHistory" : 0 ,"complaints" : 0 , "activationDeactivationRequest" : 0,"ledger" : 0})
-//     //   .sort({sortId : 1}).skip((perPage*page)-perPage).limit(perPage).lean()
-
-//     let output = cust.map((element) => {
-//       return {
-//         ...element,
-//         assignedBox: element.assignedBox.map((box) => ({
-//           ...box.boxData,
-//           assignedPackage: box.assignedPackage.map((package) => ({
-//             _id: box._id,
-//             ...package.packageData,
-//             startDate: package.startDate,
-//             endDate: package.endDate,
-//             status: package.status,
-//           })),
-//         })),
-//       };
-//     });
-
-//     resolve(output);
-//   });
-// }
-// const getLatestInvoice = async (customerId) => {
-//   // return await tblCustomerInvoice.findOne({customerId: mongoose.Types.ObjectId(customerId)},null,{ sort: { month: -1 } },)
-//   return await tblCustomerInvoice.aggregate([
-//     {
-//       $match: {
-//         customerId: mongoose.Types.ObjectId(customerId),
-//       },
-//     },
-//     {
-//       $unwind: "$packages",
-//     },
-//     {
-//       $lookup: {
-//         from: "tblOperatorPackages",
-//         localField: "packages._id",
-//         foreignField: "_id",
-//         as: "packages._id",
-//       },
-//     },
-//     {
-//       $sort: {
-//         month: -1,
-//       },
-//     },
-//     {
-//       $limit: 1,
-//     },
-//   ]);
-// };
-// const getReceiptNumber = async (operatorId) => {
-//   return await TblOperator.findOneAndUpdate(
-//     { operatorId: operatorId },
-//     { $inc: { receiptNumber: 1 } },
-//     {
-//       fields: { receiptNumber: 1, _id: 0 },
-//     }
-//   );
-// };
-// const updateCustomerDue = async (customerId, paidAmount, totalDue, type) => {
-//   let inc = {};
-//   switch (type) {
-//     case "Payment":
-//       inc = { due: -paidAmount };
-//       break;
-//     case "Adjustment":
-//       inc = { due: +paidAmount };
-//       break;
-//     case "Discount":
-//       inc = { due: -paidAmount };
-//       break;
-//     default:
-//       inc = { due: -paidAmount };
-//       break;
-//   }
-//   return await TblCustomerInfo.updateOne(
-//     { _id: mongoose.Types.ObjectId(customerId) },
-//     {
-//       $set: {
-//         dueString: totalDue + "",
-//       },
-//       $inc: inc,
-//     }
-//   );
-// };
-// const updateDeviceStatus = async (deviceId) => {
-//   return await tblOperatorDevice.updateOne(
-//     { _id: deviceId },
-//     {
-//       $set: {
-//         status: 3,
-//         activeStatus: "ACTIVE",
-//       },
-//     }
-//   );
-// };
-// const createInvoice = async (newCustomer, forIndex, discount) => {
-//   return new Promise(async (resolve, reject) => {
-//     let dateTillToday = [];
-//     let d = new Date();
-//     let invoicePrefix = getReceiptPrefix();
-
-//     // let currentDate = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
-//     // dateTillToday.push(currentDate)
-//     for (let index = forIndex; index <= d.getDate(); index++) {
-//       let currentDate =
-//         ("0" + index).slice(-2) +
-//         "/" +
-//         ("0" + (d.getMonth() + 1)).slice(-2) +
-//         "/" +
-//         d.getFullYear();
-//       dateTillToday.push(currentDate);
-//     }
-//     let result = await TblCustomerInfo.aggregate([
-//       {
-//         $match: {
-//           status: 2,
-//           _id: newCustomer._id,
-//         },
-//       },
-//       {
-//         $unwind: "$assignedBox",
-//       },
-//       {
-//         $match: {
-//           "assignedBox.status": 1,
-//         },
-//       },
-//       {
-//         $unwind: "$assignedBox.assignedPackage",
-//       },
-//       {
-//         $match: {
-//           "assignedBox.assignedPackage.endDate": { $in: dateTillToday },
-//           "assignedBox.assignedPackage.status": 1,
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "tblOperatorPackages",
-//           localField: "assignedBox.assignedPackage.packageData",
-//           foreignField: "_id",
-//           as: "assignedBox.assignedPackage.assignedPackageData",
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "tblOperatorInvoiceTypeData",
-//           localField: "assignedBox.assignedPackage.invoiceTypeId",
-//           foreignField: "_id",
-//           as: "assignedBox.assignedPackage.invoiceTypeId",
-//         },
-//       },
-//       {
-//         $project: {
-//           custName: 0,
-//           contact: 0,
-//           email: 0,
-//           perAddress: 0,
-//           initAddress: 0,
-//           area: 0,
-//           city: 0,
-//           state: 0,
-//           pin: 0,
-//           createDate: 0,
-//           activationDate: 0,
-//           houseName: 0,
-//           custCategory: 0,
-//           gstNo: 0,
-//           custType: 0,
-//           activationDeactivationHistory: 0,
-//           sortId: 0,
-//           autoCustId: 0,
-//           autoCustIdString: 0,
-//         },
-//       },
-//     ]);
-//     if (result.length > 0) {
-//       const offer = _.filter(result, function (resultPackage) {
-//         return resultPackage.assignedBox.assignedPackage.freeTier > 0;
-//       });
-
-//       offer.map(async (item) => {
-//         await updateFreeTier(item);
-//       });
-
-//       let reStructureData = await getReStructureData(result);
-//       let invoice = [];
-//       let totalDue = newCustomer.due;
-
-//       for (let item of reStructureData) {
-//         totalDue = totalDue + item.totalSubscription;
-
-//         let findData = _.find(invoice, function (res) {
-//           return res.month == item.month;
-//         });
-//         if (findData) {
-//           findData.subscriptionAmount =
-//             findData.subscriptionAmount + item.subscriptionAmount;
-//           findData.cgst = findData.cgst + item.cgst;
-//           findData.sgst = findData.sgst + item.sgst;
-//           findData.totalSubscription =
-//             findData.totalSubscription + item.totalSubscription;
-//           findData.packages = [...findData.packages, ...item.packages];
-//         } else {
-//           let latestNumber = await getInvoiceNumber(item.operatorId);
-//           let fullInvoiceNumber = `${latestNumber.invoiceNumber}/${invoicePrefix}`;
-//           invoice.push({
-//             _id: mongoose.Types.ObjectId(),
-//             operatorId: item.operatorId,
-//             customerId: item.customerId,
-//             invoiceNumber: fullInvoiceNumber,
-//             month: item.month,
-//             subscriptionAmount: item.subscriptionAmount,
-//             cgst: item.cgst,
-//             sgst: item.sgst,
-//             totalSubscription: item.totalSubscription,
-//             discount: discount ? item.discount : 0,
-//             previousDue: item.previousDue,
-//             packages: item.packages,
-//             status: item.status,
-//           });
-//         }
-//       }
-//       // Promise.all(createInvoiceData).then(async () => {
-//       let created = await createCustomerInvoice(invoice);
-//       created.map(async (invoiceCreate) => {
-//         let monthlyStatemenetData = {
-//           _id: mongoose.Types.ObjectId(),
-//           operatorId: invoiceCreate.operatorId,
-//           customerId: invoiceCreate.customerId,
-//           createdDate: moment(new Date(), moment.ISO_8601).format("DD/MM/YYYY"),
-//           particulars: "",
-//           transactionType: "Invoice",
-//           transactionId: invoiceCreate.invoiceNumber,
-//           previousDue: invoiceCreate.previousDue,
-//           debit: 0,
-//           credit: invoiceCreate.totalSubscription,
-//           discount: invoiceCreate.discount,
-//           balance:
-//             invoiceCreate.previousDue +
-//             invoiceCreate.totalSubscription -
-//             invoiceCreate.discount,
-//           status: 1,
-//         };
-//         await createCustomerMonthlyStatement(monthlyStatemenetData);
-//       });
-//       // })
-
-//       const requestsUpdate = reStructureData.map(async (item) => {
-//         await updateCustomerAndDue(item);
-//       });
-//       Promise.all(requestsUpdate).then(async () => {
-//         let dueAfterDiscount = totalDue;
-//         if (discount) {
-//           dueAfterDiscount = totalDue - newCustomer.discount;
-//         }
-
-//         const requests = await updateDueAfterDiscount(
-//           newCustomer._id,
-//           dueAfterDiscount
-//         );
-//         resolve([requests]);
-//       });
-//     } else {
-//       let due = 0;
-
-//       const requests = await updateCustomer(newCustomer, due);
-
-//       resolve([requests]);
-//     }
-//   });
-// };
-
-// const getReceiptPrefix = () => {
-//   let d = new Date();
-//   let invoicePrefix;
-//   let currentMonth = d.getMonth();
-//   let currentYear = d.getFullYear().toString().substring(2);
-//   if (currentMonth < 3) {
-//     currentYear = parseInt(currentYear) - 1;
-//   } else {
-//     currentYear = parseInt(currentYear);
-//   }
-//   invoicePrefix = `${currentYear}_${currentYear + 1}`;
-//   return invoicePrefix;
-// };
-// const updateFreeTier = async (items) => {
-//   let inc = {};
-
-//   let freeTier = items.assignedBox.assignedPackage.freeTier;
-//   if (freeTier > 0) {
-//     inc = { "assignedBox.$[box].assignedPackage.$[package].freeTier": -1 };
-//   }
-
-//   return await TblCustomerInfo.updateOne(
-//     { _id: items._id },
-//     {
-//       $inc: inc,
-//     },
-//     {
-//       arrayFilters: [
-//         { "box.boxData": mongoose.Types.ObjectId(items.assignedBox.boxData) },
-//         {
-//           "package.packageData": items.assignedBox.assignedPackage.packageData,
-//         },
-//       ],
-//     }
-//   );
-// };
-// const getReStructureData = async (result) => {
-//   const withoutOffer = _.filter(result, function (res) {
-//     return res.assignedBox.assignedPackage.freeTier == 0;
-//   });
-
-//   return withoutOffer.map((item) => {
-//     return {
-//       operatorId: item.operatorId,
-//       customerId: item._id,
-//       month: item.assignedBox.assignedPackage.endDate,
-//       subscriptionAmount:
-//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-//       cgst: getGSTAmount(
-//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
-//       ),
-//       sgst: getGSTAmount(
-//         item.assignedBox.assignedPackage.assignedPackageData[0].packageAmount,
-//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount
-//       ),
-//       totalSubscription:
-//         item.assignedBox.assignedPackage.assignedPackageData[0].withTaxAmount,
-//       discount: item.discount,
-//       previousDue: item.due,
-//       packages: [
-//         {
-//           _id: item.assignedBox.assignedPackage.packageData,
-//           packageName:
-//             item.assignedBox.assignedPackage.assignedPackageData[0].packageName,
-//           packageAmount:
-//             item.assignedBox.assignedPackage.assignedPackageData[0]
-//               .packageAmount,
-//           tax: item.assignedBox.assignedPackage.assignedPackageData[0].tax,
-//           withTaxAmount:
-//             item.assignedBox.assignedPackage.assignedPackageData[0]
-//               .withTaxAmount,
-//           packageType:
-//             item.assignedBox.assignedPackage.assignedPackageData[0].packageType,
-//           connectionType:
-//             item.assignedBox.assignedPackage.assignedPackageData[0]
-//               .connectionType,
-//           startDate: item.assignedBox.assignedPackage.startDate,
-//           endDate: getEndDate(
-//             item?.assignedBox?.assignedPackage?.invoiceTypeId,
-//             item?.assignedBox?.assignedPackage?.endDate
-//           ),
-//         },
-//       ],
-//       status: 1,
-//       assignedBox: item.assignedBox,
-//     };
-//   });
-// };
-// const getGSTAmount = (withoutTax, withTax) => {
-//   return (parseFloat(withTax) - parseFloat(withoutTax)) / 2;
-// };
-// const getEndDate = (invoiceTypeId, endDate) => {
-//   let splitDate = endDate.split("/");
-//   let formatDate = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}`;
-//   let d = new Date(formatDate);
-//   let datestring = "";
-
-//   const { duration, durationType } = invoiceTypeId[0];
-
-//   if (durationType === "Month") {
-//     datestring = moment(d, moment.ISO_8601)
-//       .add(parseInt(duration), "months")
-//       .format("DD/MM/YYYY");
-//   }
-//   if (durationType === "Day") {
-//     datestring = moment(d, moment.ISO_8601)
-//       .add(parseInt(duration), "days")
-//       .format("DD/MM/YYYY");
-//   }
-//   return datestring;
-// };
-// const getInvoiceNumber = async (operatorId) => {
-//   return await TblOperator.findOneAndUpdate(
-//     { operatorId: operatorId },
-//     { $inc: { invoiceNumber: 1 } },
-//     {
-//       fields: { invoiceNumber: 1, _id: 0 },
-//     }
-//   );
-// };
-// const createCustomerInvoice = async (item) => {
-//   return await tblCustomerInvoice.create(item);
-
-//   // return
-// };
-// const createCustomerMonthlyStatement = async (createData) => {
-//   return await tblCustomerMonthlyStatement.create(createData);
-// };
 const updateCustomerAndDue = async (item) => {
   return await TblCustomerInfo.updateOne(
     { _id: item._id },
