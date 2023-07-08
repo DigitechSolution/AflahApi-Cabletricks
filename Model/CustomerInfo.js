@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const AutoIncrement = require('mongoose-sequence')(mongoose);
-const activationDeactivationHistory = require("../Model/CustomerActivationDeactivationHostory")
+const activationDeactivationHistory = require("../Model/CustomerActivationDeactivationHostory");
+const counters = require("./counter");
 const customerInfoSchema = mongoose.Schema({
     _id: mongoose.Schema.Types.ObjectId,
     operatorId: {type : String,index : true},
@@ -69,6 +70,38 @@ versionKey: false
 customerInfoSchema.plugin(AutoIncrement, {id:'connectionSortId_seq',inc_field: 'sortId', start_seq: 0,reference_fields:['operatorId']});
 customerInfoSchema.plugin(AutoIncrement, {id:'connectionAutoCustId_seq',inc_field: 'autoCustId', start_seq: 1,reference_fields:['operatorId']});
 
+customerInfoSchema.pre("save", async function (next) {
+    const counterDocs = await counters.find({ "reference_value.operatorId": this.operatorId });
+  
+    if (counterDocs?.length) {
+      counterDocs.forEach(counterDoc => {
+        if (counterDoc.id === "connectionAutoCustId_seq") {
+          this.autoCustId = counterDoc.seq;
+          this.autoCustIdString = String(counterDoc.seq);
+        } else if (counterDoc.id === "connectionSortId_seq") {
+          this.sortId = counterDoc.seq;
+        }
+      });
+    } else {
+      throw new Error("Counter document not found.");
+    }
+  
+    // Proceed to save the customerInfoSchema document
+    next();
+});
+  
+customerInfoSchema.post("save", async function (doc) {
+  const updateResult = await counters.updateMany(
+    { "reference_value.operatorId": this.operatorId },
+    { $inc: { seq: 1 } }
+  );
+
+  if (!updateResult.acknowledged) {
+    throw new Error("Failed to update counter documents.");
+  }
+});
+  
+  
 
 const tblCustomerInfo = mongoose.model('tblCustomerInfo', customerInfoSchema, 'tblCustomerInfo');
 module.exports = tblCustomerInfo;   

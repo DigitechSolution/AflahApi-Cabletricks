@@ -1442,6 +1442,7 @@ router.post(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     var post = req.body;
+    console.log(post);
     let perPage;
     let page;
     const pin = post.moreFilter;
@@ -1453,7 +1454,6 @@ router.post(
       startDate = split[0].replace(/\s/g, "");
       endDate = split[1].replace(/\s/g, "");
     }
-    console.log(startDate, endDate);
     let operatorId = req.user.userData.operatorId;
     match.operatorId = operatorId;
     switch (post.filter) {
@@ -1472,6 +1472,7 @@ router.post(
       default:
         break;
     }
+    console.log(match);
     try {
       const total = await tblCustomerReceipt.aggregate([
         {
@@ -1999,6 +2000,19 @@ router.post(
             customerId: 0,
             "userDetails.activationDeactivationHistory": 0,
             "userDetails.sortId": 0,
+          },
+        },
+        {
+          $group: {
+            _id: "$_id",
+            userDetails: {
+              $mergeObjects: "$userDetails",
+            },
+            assignedPackages: {
+              $push: {
+                $ifNull: ["$userDetails.assignedBox.assignedPackage", []],
+              },
+            },
           },
         },
         {
