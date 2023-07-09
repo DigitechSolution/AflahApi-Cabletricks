@@ -2079,7 +2079,7 @@ router.get(
         const totalCollection = await tblCustomerReceipt.aggregate([
           {
             $match: {
-              operatorId: "949442",
+              operatorId: operatorId,
               createdAt: {
                 $gte: new Date(currentYear, currentMonth - 1, 1), // Start of the current month
                 $lt: new Date(currentYear, currentMonth, 1), // Start of the next month
@@ -2139,6 +2139,57 @@ router.get(
     }
   }
 );
+
+router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
+  try {
+    const pipeline = [
+      {
+        $unwind: "$assignedBox"
+      },
+      {
+        $unwind: "$assignedBox.assignedPackage"
+      },
+      {
+        $group: {
+          _id: "$assignedBox.assignedPackage.packageData",
+          totalConnections: {
+            $sum: 1
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: "tblOperatorPackages",
+          localField: "_id",
+          foreignField: "_id",
+          as: "packageData"
+        }
+      },
+      {
+        $unwind: "$packageData"
+      },
+      {
+        $project: {
+          _id: 0,
+          packageName: "$packageData.packageName",
+          totalConnections: 1
+        }
+      },
+      {
+        $sort: {
+          totalConnections: -1
+        }
+      }
+    ];
+
+    const topPackages = await tblCustomerInfo.aggregate(pipeline).exec();
+    res.json({ success: true, data: topPackages });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "An error occurred" });
+  }
+});
+
 
 router.post(
   "/getCustomerInfoManage",
