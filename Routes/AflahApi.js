@@ -2119,7 +2119,7 @@ router.get(
 
         // Calculate the balance by subtracting the total due from the total collection
         const balance =
-          totalCollection[0]?.totalCollection - totalCollection[0]?.totalDue || 0;
+          totalCollection[0]?.totalDue - totalCollection[0]?.totalCollection || 0;
 
         // Create the area report object
         const areaReport = {
@@ -2141,8 +2141,14 @@ router.get(
 );
 
 router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
+  const operatorId = req.user.userData.operatorId;
   try {
     const pipeline = [
+      {
+        $match: {
+          operatorId: operatorId
+        }
+      },
       {
         $unwind: "$assignedBox"
       },
