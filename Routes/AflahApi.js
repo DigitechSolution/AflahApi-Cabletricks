@@ -2201,33 +2201,70 @@ router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
   }
 });
 
-// router.get(
-//   "/collection-vs-expenses",
-//   AuthMiddleware.verifyToken,
-//   async (req, res) => {
-//     try {
-//       const collectionData = await tblCustomerReceipt.aggregate([
-//         {
-//           $match: {
-//             operatorId: "949442",
-//             createdAt: {
-//               $gte: ISODate("2023-07-01T00:00:00Z"),
-//               $lt: ISODate("2023-08-01T00:00:00Z"),
-//             },
-//           },
-//         },
-//         {
-//           $group: {
-//             _id: null,
-//             totalCollection: {
-//               $sum: "$amount",
-//             },
-//           },
-//         },
-//       ]);
-//     } catch (error) {}
-//   }
-// );
+router.get(
+  "/current-month-collection-vs-expenses",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const operatorId = req.user.userData.operatorId;
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    try {
+      const collectionData = await tblCustomerReceipt.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+            createdAt: {
+              $gte: new Date(currentYear, currentMonth - 1, 1),
+              $lt: new Date(currentYear, currentMonth, 1),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalCollection: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]);
+
+      const expensesData = await tblOtherExpenseAndIncome.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+            type: "Expense",
+            createdAt: {
+              $gte: new Date(currentYear, currentMonth - 1, 1),
+              $lt: new Date(currentYear, currentMonth, 1),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalExpense: {
+              $sum: "$amount",
+            },
+          },
+        },
+      ]);
+
+      const response = {
+        success: true,
+        data: {
+          collection: collectionData[0]?.totalCollection || 0,
+          expenses: expensesData[0]?.totalExpense || 0,
+        },
+      };
+      res.json(response);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "An error occurred" });
+    }
+  }
+);
 
 router.post(
   "/getCustomerInfoManage",
