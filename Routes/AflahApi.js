@@ -2156,6 +2156,22 @@ router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
         $unwind: "$assignedBox.assignedPackage"
       },
       {
+        $lookup: {
+          from: "tblOperatorPackages",
+          localField: "assignedBox.assignedPackage.packageData",
+          foreignField: "_id",
+          as: "packageData"
+        }
+      },
+      {
+        $unwind: "$packageData"
+      },
+      {
+        $match: {
+          "packageData.packageType": "MAIN"
+        }
+      },
+      {
         $group: {
           _id: "$assignedBox.assignedPackage.packageData",
           totalConnections: {
@@ -2187,6 +2203,7 @@ router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
         }
       }
     ];
+    
 
     const topPackages = await tblCustomerInfo.aggregate(pipeline).exec();
     res.json({ success: true, data: topPackages });
