@@ -2056,6 +2056,90 @@ router.post(
   }
 );
 
+router.get(
+  "/collection-reports",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const operatorId = req.user.userData.operatorId;
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // Add 1 to get the current month (January is 0)
+    try {
+      const areas = await tblOperatorInfo.findOne(
+        { operatorId: operatorId },
+        { AreaData: 1 }
+      );
+
+      // Create an object to store the area-wise collection reports
+      const areaReports = {};
+
+      // Iterate over each area
+      for (const area of areas.AreaData) {
+        // Fetch total collection for the current month from tblCustomerReceipt
+        const totalCollection = await tblCustomerReceipt.aggregate([
+          {
+            $match: {
+              operatorId: "949442",
+              createdAt: {
+                $gte: new Date(currentYear, currentMonth - 1, 1), // Start of the current month
+                $lt: new Date(currentYear, currentMonth, 1), // Start of the next month
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: "tblCustomerInfo",
+              localField: "customerId",
+              foreignField: "_id",
+              as: "result",
+            },
+          },
+          {
+            $match: {
+              "result.area": area,
+            },
+          },
+          {
+            $unwind: {
+              path: "$result",
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalCollection: {
+                $sum: "$amount",
+              },
+              totalDue: {
+                $sum: "$result.due",
+              },
+            },
+          },
+        ]);
+
+        // Calculate the balance by subtracting the total due from the total collection
+        const balance =
+          totalCollection[0]?.totalCollection - totalCollection[0]?.totalDue || 0;
+
+        // Create the area report object
+        const areaReport = {
+          TotalDue: totalCollection[0]?.totalDue || 0,
+          TotalCollection: totalCollection[0]?.totalCollection || 0,
+          Balance: balance,
+        };
+
+        // Add the area report to the areaReports object
+        areaReports[area] = areaReport;
+      }
+      // Send the area-wise collection reports as the response
+      res.json({ success: true, data: areaReports });
+    } catch (error) {
+      // Handle any errors that occur
+      res.status(500).json({ error: "An error occurred" });
+    }
+  }
+);
+
 router.post(
   "/getCustomerInfoManage",
   AuthMiddleware.verifyToken,
