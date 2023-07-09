@@ -2063,26 +2063,21 @@ router.get(
     const operatorId = req.user.userData.operatorId;
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // Add 1 to get the current month (January is 0)
+    const currentMonth = currentDate.getMonth() + 1;
     try {
       const areas = await tblOperatorInfo.findOne(
         { operatorId: operatorId },
         { AreaData: 1 }
       );
-
-      // Create an object to store the area-wise collection reports
-      const areaReports = {};
-
-      // Iterate over each area
+      const areaReports = [];
       for (const area of areas.AreaData) {
-        // Fetch total collection for the current month from tblCustomerReceipt
         const totalCollection = await tblCustomerReceipt.aggregate([
           {
             $match: {
               operatorId: operatorId,
               createdAt: {
-                $gte: new Date(currentYear, currentMonth - 1, 1), // Start of the current month
-                $lt: new Date(currentYear, currentMonth, 1), // Start of the next month
+                $gte: new Date(currentYear, currentMonth - 1, 1),
+                $lt: new Date(currentYear, currentMonth, 1),
               },
             },
           },
@@ -2116,26 +2111,20 @@ router.get(
             },
           },
         ]);
-
-        // Calculate the balance by subtracting the total due from the total collection
         const balance =
-          totalCollection[0]?.totalDue - totalCollection[0]?.totalCollection || 0;
-
-        // Create the area report object
+          totalCollection[0]?.totalDue - totalCollection[0]?.totalCollection ||
+          0;
         const areaReport = {
+          area: area,
           TotalDue: totalCollection[0]?.totalDue || 0,
           TotalCollection: totalCollection[0]?.totalCollection || 0,
           Balance: balance,
         };
-
-        // Add the area report to the areaReports object
-        areaReports[area] = areaReport;
+        areaReports.push(areaReport);
       }
-      // Send the area-wise collection reports as the response
       res.json({ success: true, data: areaReports });
     } catch (error) {
-      // Handle any errors that occur
-      res.status(500).json({ error: "An error occurred" });
+      res.status(500).json({ success: false, error: "An error occurred" });
     }
   }
 );
@@ -2146,64 +2135,63 @@ router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
     const pipeline = [
       {
         $match: {
-          operatorId: operatorId
-        }
+          operatorId: operatorId,
+        },
       },
       {
-        $unwind: "$assignedBox"
+        $unwind: "$assignedBox",
       },
       {
-        $unwind: "$assignedBox.assignedPackage"
+        $unwind: "$assignedBox.assignedPackage",
       },
       {
         $lookup: {
           from: "tblOperatorPackages",
           localField: "assignedBox.assignedPackage.packageData",
           foreignField: "_id",
-          as: "packageData"
-        }
+          as: "packageData",
+        },
       },
       {
-        $unwind: "$packageData"
+        $unwind: "$packageData",
       },
       {
         $match: {
-          "packageData.packageType": "MAIN"
-        }
+          "packageData.packageType": "MAIN",
+        },
       },
       {
         $group: {
           _id: "$assignedBox.assignedPackage.packageData",
           totalConnections: {
-            $sum: 1
-          }
-        }
+            $sum: 1,
+          },
+        },
       },
       {
         $lookup: {
           from: "tblOperatorPackages",
           localField: "_id",
           foreignField: "_id",
-          as: "packageData"
-        }
+          as: "packageData",
+        },
       },
       {
-        $unwind: "$packageData"
+        $unwind: "$packageData",
       },
       {
         $project: {
           _id: 0,
           packageName: "$packageData.packageName",
-          totalConnections: 1
-        }
+          totalConnections: 1,
+        },
       },
       {
         $sort: {
-          totalConnections: -1
-        }
-      }
+          totalConnections: -1,
+        },
+      },
     ];
-    
 
     const topPackages = await tblCustomerInfo.aggregate(pipeline).exec();
     res.json({ success: true, data: topPackages });
@@ -2213,6 +2201,33 @@ router.get("/top-packages", AuthMiddleware.verifyToken, async (req, res) => {
   }
 });
 
+// router.get(
+//   "/collection-vs-expenses",
+//   AuthMiddleware.verifyToken,
+//   async (req, res) => {
+//     try {
+//       const collectionData = await tblCustomerReceipt.aggregate([
+//         {
+//           $match: {
+//             operatorId: "949442",
+//             createdAt: {
+//               $gte: ISODate("2023-07-01T00:00:00Z"),
+//               $lt: ISODate("2023-08-01T00:00:00Z"),
+//             },
+//           },
+//         },
+//         {
+//           $group: {
+//             _id: null,
+//             totalCollection: {
+//               $sum: "$amount",
+//             },
+//           },
+//         },
+//       ]);
+//     } catch (error) {}
+//   }
+// );
 
 router.post(
   "/getCustomerInfoManage",
