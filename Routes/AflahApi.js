@@ -1442,7 +1442,6 @@ router.post(
   AuthMiddleware.verifyToken,
   async (req, res) => {
     var post = req.body;
-    console.log(post);
     let perPage;
     let page;
     const pin = post.moreFilter;
@@ -1472,7 +1471,6 @@ router.post(
       default:
         break;
     }
-    console.log(match);
     try {
       const total = await tblCustomerReceipt.aggregate([
         {
@@ -2265,6 +2263,318 @@ router.get(
     }
   }
 );
+
+function calculatePercentageChange(previousValue, currentValue) {
+  if (previousValue === 0 && currentValue === 0) {
+    return 0; // Both incomes are zero, percentage change is zero
+  } else if (previousValue === 0) {
+    return 100.0; // Last month income is zero, consider it as a 100% increase
+  } else if (currentValue === 0) {
+    return -100.0; // This month income is zero, consider it as a 100% decrease
+  }
+
+  const percentageChange =
+    ((currentValue - previousValue) / previousValue) * 100;
+  return percentageChange;
+}
+
+router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
+  const operatorId = req.user.userData.operatorId;
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  // Calculate the previous month
+  const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  try {
+    // Get total previous balance (Total Due - Total Invoice)
+    const totalDue = await tblCustomerInfo.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          updatedAt: {
+            $gte: new Date(currentYear, currentMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalDue: {
+            $sum: "$due",
+          },
+        },
+      },
+    ]);
+
+    const totalInvoice = await tblCustomerInvoice.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          $expr: {
+            $and: [
+              {
+                $eq: [
+                  {
+                    $month: {
+                      $dateFromString: {
+                        dateString: "$month",
+                        format: "%d/%m/%Y",
+                      },
+                    },
+                  },
+                  currentMonth,
+                ],
+              },
+              {
+                $eq: [
+                  {
+                    $year: {
+                      $dateFromString: {
+                        dateString: "$month",
+                        format: "%d/%m/%Y",
+                      },
+                    },
+                  },
+                  currentYear,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          count: {
+            $sum: 1,
+          },
+        },
+      },
+    ]);
+
+    const totalCollection = await tblCustomerReceipt.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          createdAt: {
+            $gte: new Date(currentYear, currentMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: {
+            $sum: "$amount",
+          },
+        },
+      },
+    ]);
+
+    const totalExpense = await tblOtherExpenseAndIncome.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          type: "Expense",
+          createdAt: {
+            $gte: new Date(currentYear, currentMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: {
+            $sum: "$amount",
+          },
+        },
+      },
+    ]);
+
+    const previousDue = totalDue[0]?.totalDue || 0;
+    const collection = totalCollection[0]?.totalAmount || 0;
+    const balanceAmount = totalDue[0]?.totalDue - collection || 0;
+    const expense = totalExpense[0]?.totalAmount || 0;
+
+    // Calculate variation percentage since last month
+    const previousTotalDue = await tblCustomerInfo.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          updatedAt: {
+            $gte: new Date(currentYear, previousMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth - 1, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalDue: {
+            $sum: "$due",
+          },
+        },
+      },
+    ]);
+    const previousMonthCollection = await tblCustomerReceipt.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          createdAt: {
+            $gte: new Date(currentYear, previousMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth - 1, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: {
+            $sum: "$amount",
+          },
+        },
+      },
+    ]);
+
+    const previousMonthInvoice = await tblCustomerInvoice.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          $expr: {
+            $and: [
+              {
+                $eq: [
+                  {
+                    $month: {
+                      $dateFromString: {
+                        dateString: "$month",
+                        format: "%d/%m/%Y",
+                      },
+                    },
+                  },
+                  currentMonth - 1,
+                ],
+              },
+              {
+                $eq: [
+                  {
+                    $year: {
+                      $dateFromString: {
+                        dateString: "$month",
+                        format: "%d/%m/%Y",
+                      },
+                    },
+                  },
+                  currentYear,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          count: {
+            $sum: 1,
+          },
+        },
+      },
+    ]);
+
+    const previousMonthExpense = await tblOtherExpenseAndIncome.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          type: "Expense",
+          createdAt: {
+            $gte: new Date(currentYear, previousMonth - 1, 1),
+            $lt: new Date(currentYear, currentMonth - 1, 1),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: {
+            $sum: "$amount",
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalAmount: 1,
+        },
+      },
+    ]);
+    const previousMonthTotalDue = previousTotalDue[0]?.totalDue || 0;
+    const previousMonthCollectionAmount =
+      previousMonthCollection[0]?.totalAmount || 0;
+    const previousMonthInvoiceCount = previousMonthInvoice[0]?.count || 0;
+    const previousMonthBalanceAmount =
+      previousMonthTotalDue - previousMonthCollectionAmount || 0;
+    const previousMonthExpenseAmount =
+      previousMonthExpense[0]?.totalAmount || 0;
+
+    const sinceLastMonthDue = calculatePercentageChange(
+      previousMonthTotalDue,
+      previousDue
+    );
+    const sinceLastMonthInvoice = calculatePercentageChange(
+      previousMonthInvoiceCount,
+      totalInvoice[0]?.count || 0
+    );
+    const sinceLastMonthCollection = calculatePercentageChange(
+      previousMonthCollectionAmount,
+      collection
+    );
+    const sinceLastMonthBalanceAmount = calculatePercentageChange(
+      previousMonthBalanceAmount,
+      balanceAmount
+    );
+    const sinceLastMonthExpense = calculatePercentageChange(
+      previousMonthExpenseAmount,
+      expense
+    );
+
+    const summaryReports = [
+      {
+        "Previous Due": previousDue,
+        SinceLastMonth: sinceLastMonthDue,
+      },
+      {
+        "Total Invoice": totalInvoice[0]?.count || 0,
+        SinceLastMonth: sinceLastMonthInvoice,
+      },
+      {
+        "Total Collection": collection,
+        SinceLastMonth: sinceLastMonthCollection,
+      },
+      {
+        "Balance Amount": balanceAmount,
+        SinceLastMonth: sinceLastMonthBalanceAmount,
+      },
+      {
+        "Total Expense": expense,
+        SinceLastMonth: sinceLastMonthExpense,
+      },
+    ];
+
+    const response = {
+      success: true,
+      data: summaryReports,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "An error occurred" });
+  }
+});
 
 router.post(
   "/getCustomerInfoManage",
