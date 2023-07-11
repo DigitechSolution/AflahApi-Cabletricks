@@ -2307,47 +2307,40 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
       },
     ]);
 
-    const totalInvoice = await tblCustomerInvoice.aggregate([
+    const totalInvoice = await tblCustomerMonthlyStatement.aggregate([
+      {
+        $addFields: {
+          createdDate: {
+            $dateFromString: {
+              dateString: {
+                $concat: [
+                  { $substr: ["$createdDate", 6, 4] }, // Extract year
+                  "-",
+                  { $substr: ["$createdDate", 3, 2] }, // Extract month
+                  "-",
+                  { $substr: ["$createdDate", 0, 2] }, // Extract day
+                ],
+              },
+              format: "%Y-%m-%d",
+            },
+          },
+        },
+      },
       {
         $match: {
           operatorId: operatorId,
-          $expr: {
-            $and: [
-              {
-                $eq: [
-                  {
-                    $month: {
-                      $dateFromString: {
-                        dateString: "$month",
-                        format: "%d/%m/%Y",
-                      },
-                    },
-                  },
-                  currentMonth,
-                ],
-              },
-              {
-                $eq: [
-                  {
-                    $year: {
-                      $dateFromString: {
-                        dateString: "$month",
-                        format: "%d/%m/%Y",
-                      },
-                    },
-                  },
-                  currentYear,
-                ],
-              },
-            ],
+          transactionType: "Invoice",
+          createdDate: {
+            $gte: new Date(currentYear, currentMonth - 1, 1), // Start of current month
+            $lt: new Date(currentYear, currentMonth, 1), // Start of next month
           },
         },
       },
       {
         $group: {
           _id: null,
-          count: {
-            $sum: 1,
+          totalCredit: {
+            $sum: "$credit",
           },
         },
       },
@@ -2393,8 +2386,9 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
         },
       },
     ]);
-
-    const previousDue = totalDue[0]?.totalDue || 0;
+    const previousDue =
+      totalDue[0]?.totalDue - totalInvoice[0]?.totalCredit || 0;
+    const invoiceCredit = totalInvoice[0]?.totalCredit || 0;
     const collection = totalCollection[0]?.totalAmount || 0;
     const balanceAmount = totalDue[0]?.totalDue - collection || 0;
     const expense = totalExpense[0]?.totalAmount || 0;
@@ -2441,45 +2435,38 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
 
     const previousMonthInvoice = await tblCustomerInvoice.aggregate([
       {
+        $addFields: {
+          createdDate: {
+            $dateFromString: {
+              dateString: {
+                $concat: [
+                  { $substr: ["$createdDate", 6, 4] }, // Extract year
+                  "-",
+                  { $substr: ["$createdDate", 3, 2] }, // Extract month
+                  "-",
+                  { $substr: ["$createdDate", 0, 2] }, // Extract day
+                ],
+              },
+              format: "%Y-%m-%d",
+            },
+          },
+        },
+      },
+      {
         $match: {
           operatorId: operatorId,
-          $expr: {
-            $and: [
-              {
-                $eq: [
-                  {
-                    $month: {
-                      $dateFromString: {
-                        dateString: "$month",
-                        format: "%d/%m/%Y",
-                      },
-                    },
-                  },
-                  currentMonth - 1,
-                ],
-              },
-              {
-                $eq: [
-                  {
-                    $year: {
-                      $dateFromString: {
-                        dateString: "$month",
-                        format: "%d/%m/%Y",
-                      },
-                    },
-                  },
-                  currentYear,
-                ],
-              },
-            ],
+          transactionType: "Invoice",
+          createdDate: {
+            $gte: new Date(currentYear, previousMonth - 1, 1), // Start of current month
+            $lt: new Date(currentYear, currentMonth - 1, 1), // Start of next month
           },
         },
       },
       {
         $group: {
           _id: null,
-          count: {
-            $sum: 1,
+          totalCredit: {
+            $sum: "$credit",
           },
         },
       },
@@ -2511,7 +2498,8 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
         },
       },
     ]);
-    const previousMonthTotalDue = previousTotalDue[0]?.totalDue || 0;
+    const previousMonthTotalDue =
+      previousTotalDue[0]?.totalDue - previousMonthInvoice[0]?.count || 0;
     const previousMonthCollectionAmount =
       previousMonthCollection[0]?.totalAmount || 0;
     const previousMonthInvoiceCount = previousMonthInvoice[0]?.count || 0;
@@ -2526,7 +2514,7 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
     );
     const sinceLastMonthInvoice = calculatePercentageChange(
       previousMonthInvoiceCount,
-      totalInvoice[0]?.count || 0
+      invoiceCredit
     );
     const sinceLastMonthCollection = calculatePercentageChange(
       previousMonthCollectionAmount,
@@ -2543,11 +2531,11 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
 
     const summaryReports = [
       {
-        "Previous Due": previousDue,
+        "Previous Balance": previousDue,
         SinceLastMonth: sinceLastMonthDue,
       },
       {
-        "Total Invoice": totalInvoice[0]?.count || 0,
+        "Total Invoice": invoiceCredit,
         SinceLastMonth: sinceLastMonthInvoice,
       },
       {
