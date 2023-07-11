@@ -2265,6 +2265,7 @@ router.get(
 );
 
 function calculatePercentageChange(previousValue, currentValue) {
+  console.log(previousValue, currentValue);
   if (previousValue === 0 && currentValue === 0) {
     return 0; // Both incomes are zero, percentage change is zero
   } else if (previousValue === 0) {
@@ -2433,7 +2434,7 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
       },
     ]);
 
-    const previousMonthInvoice = await tblCustomerInvoice.aggregate([
+    const previousMonthInvoice = await tblCustomerMonthlyStatement.aggregate([
       {
         $addFields: {
           createdDate: {
@@ -2569,7 +2570,9 @@ router.post(
   AuthMiddleware.verifyToken,
   async (request, response) => {
     var post = request.body;
+
     operatorId = request.user.userData.operatorId;
+
     var match = {};
     var and = {};
     if (!isEmpty(post.filter)) {
@@ -2913,7 +2916,9 @@ router.post(
             if (val.Equals != "All") {
               and = {
                 assignedBox: {
-                  $elemMatch: { boxData: mongoose.Types.ObjectId(val.Equals) },
+                  $elemMatch: {
+                    boxData: new mongoose.Types.ObjectId(val.Equals),
+                  },
                 },
               };
             }
@@ -3049,6 +3054,7 @@ router.post(
             result: cusDat,
           },
         };
+        // console.log(boxDat.length);
         response.send(responseArray);
       }
     );
@@ -3074,10 +3080,10 @@ function getCount(match, and) {
         $match: and,
       },
     ]);
+
     resolve(countMap.length);
   });
 }
-
 function getCustomerManage(request, response, operatorId, count, match, and) {
   return new Promise(async (resolve, reject) => {
     var post = request.body;
@@ -3090,7 +3096,7 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
       perPage = parseInt(count);
       page = Math.max(0, post.page);
     }
-    let cust = await TblCustomerInfo.aggregate([
+    let cust = await tblCustomerInfo.aggregate([
       {
         $addFields: {
           custNameLower: { $toLower: "$custName" },
@@ -3099,6 +3105,7 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
           areaLower: { $toLower: "$area" },
           houseNameLower: { $toLower: "$houseName" },
           custTypeLower: { $toLower: "$custType" },
+          dueString: { $toLower: "$due" },
         },
       },
       {
@@ -3190,12 +3197,33 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
           operatorCustId: { $first: "$operatorCustId" },
           custName: { $first: "$custName" },
           contact: { $first: "$contact" },
+          email: { $first: "$email" },
+          perAddress: { $first: "$perAddress" },
+          initAddress: { $first: "$initAddress" },
+          area: { $first: "$area" },
+          city: { $first: "$city" },
+          state: { $first: "$state" },
+          pin: { $first: "$pin" },
+          createDate: { $first: "$createDate" },
+          activationDate: { $first: "$activationDate" },
+          houseName: { $first: "$houseName" },
+          custCategory: { $first: "$custCategory" },
+          custType: { $first: "$custType" },
+          due: { $first: "$due" },
+          dueString: { $first: "$dueString" },
+          discount: { $first: "$discount" },
+          postPaid: { $first: "$postPaid" },
+          status: { $first: "$status" },
+          statusString: { $first: "$statusString" },
+          sortId: { $first: "$sortId" },
+          autoCustId: { $first: "$autoCustId" },
+          autoCustIdString: { $first: "$autoCustIdString" },
           // Add other fields you want to preserve from the original document
 
           assignedBox: { $push: "$assignedBox" }, // Merge the "assignedBox" objects into a single array
         },
       },
-      { $sort: { autoCustId: 1 } },
+      { $sort: { operatorCustId: 1 } },
       {
         $project: {
           activationDeactivationHistory: 0,
