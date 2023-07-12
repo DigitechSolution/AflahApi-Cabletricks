@@ -2265,7 +2265,6 @@ router.get(
 );
 
 function calculatePercentageChange(previousValue, currentValue) {
-  console.log(previousValue, currentValue);
   if (previousValue === 0 && currentValue === 0) {
     return 0; // Both incomes are zero, percentage change is zero
   } else if (previousValue === 0) {
@@ -2473,6 +2472,8 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
       },
     ]);
 
+    console.log(previousMonthInvoice, "previousMonthInvoice");
+
     const previousMonthExpense = await tblOtherExpenseAndIncome.aggregate([
       {
         $match: {
@@ -2503,7 +2504,7 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
       previousTotalDue[0]?.totalDue - previousMonthInvoice[0]?.count || 0;
     const previousMonthCollectionAmount =
       previousMonthCollection[0]?.totalAmount || 0;
-    const previousMonthInvoiceCount = previousMonthInvoice[0]?.count || 0;
+    const previousMonthInvoiceCount = previousMonthInvoice[0]?.totalCredit || 0;
     const previousMonthBalanceAmount =
       previousMonthTotalDue - previousMonthCollectionAmount || 0;
     const previousMonthExpenseAmount =
@@ -3237,7 +3238,35 @@ function getCustomerManage(request, response, operatorId, count, match, and) {
         $limit: perPage,
       },
     ]);
-    resolve(cust);
+
+    const result = [];
+    const groupedData = {};
+
+    for (const obj of cust) {
+      const assignedBox = obj.assignedBox;
+      const newObj = { ...obj }; // Copy the object and preserve other fields
+
+      newObj.assignedBox = [];
+
+      for (const box of assignedBox) {
+        const assignedPackage = box.assignedPackage;
+        const assignedBoxId = box._id;
+
+        if (!groupedData[assignedBoxId]) {
+          groupedData[assignedBoxId] = {
+            ...box,
+            assignedPackage: [],
+          };
+          newObj.assignedBox.push(groupedData[assignedBoxId]);
+        }
+
+        groupedData[assignedBoxId].assignedPackage.push(...assignedPackage);
+      }
+
+      result.push(newObj);
+    }
+
+    resolve(result);
   });
 }
 
