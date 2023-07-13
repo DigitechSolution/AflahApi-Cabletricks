@@ -323,7 +323,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         },
         {
           $unwind: {
-            path: "$transaction",
+            path: "$transactions",
           },
         },
         {
@@ -359,7 +359,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       {
         $match: {
           operatorId: operatorId,
-          type: "income",
+          type: "Income",
         },
       },
       {
@@ -390,7 +390,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       {
         $match: {
           operatorId: operatorId,
-          type: "expense",
+          type: "Expense",
         },
       },
       {
@@ -442,6 +442,7 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
         },
       },
     ]);
+    console.log(bankDetails);
 
     const obj = [...otherExpense, ...otherIncome, ...Income];
 
@@ -2472,8 +2473,6 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
       },
     ]);
 
-    console.log(previousMonthInvoice, "previousMonthInvoice");
-
     const previousMonthExpense = await tblOtherExpenseAndIncome.aggregate([
       {
         $match: {
@@ -2533,23 +2532,28 @@ router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
 
     const summaryReports = [
       {
-        "Previous Balance": previousDue,
+        label: "Previous Due",
+        total: previousDue,
         SinceLastMonth: sinceLastMonthDue,
       },
       {
-        "Total Invoice": invoiceCredit,
+        label: "Invoice",
+        total: invoiceCredit,
         SinceLastMonth: sinceLastMonthInvoice,
       },
       {
-        "Total Collection": collection,
+        label: "Collections",
+        total: collection,
         SinceLastMonth: sinceLastMonthCollection,
       },
       {
-        "Balance Amount": balanceAmount,
+        label: "Balance",
+        total: balanceAmount,
         SinceLastMonth: sinceLastMonthBalanceAmount,
       },
       {
-        "Total Expense": expense,
+        label: "Expense",
+        total: expense,
         SinceLastMonth: sinceLastMonthExpense,
       },
     ];
