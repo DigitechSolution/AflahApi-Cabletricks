@@ -251,11 +251,43 @@ router.put(
 
 router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
   let operatorId = req.user.userData.operatorId;
+  const { month, year } = req.body;
   try {
-    const dataFromCustomerIncome = await tblCustomerReceipt.aggregate([
+    const Income = await tblCustomerReceipt.aggregate([
       {
         $match: {
           operatorId: operatorId,
+          paymentType: "Payment",
+          $expr: {
+            $eq: [
+              {
+                $month: {
+                  $dateFromString: {
+                    dateString: "$paidDate",
+                    format: "%d/%m/%Y",
+                  },
+                },
+              },
+              parseInt(month),
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          peaidYear: {
+            $year: {
+              $dateFromString: {
+                dateString: "$paidDate",
+                format: "%d/%m/%Y",
+              },
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          peaidYear: parseInt(year),
         },
       },
       {
@@ -268,168 +300,52 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       },
       {
         $project: {
+          _id: 0,
           income: "$amount",
         },
       },
-    ]);
-    const dataFromOtherIncomeAndExpense =
-      await tblOtherExpenseAndIncome.aggregate([
-        {
-          $match: {
-            operatorId: operatorId,
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            otherIncome: {
-              $sum: {
-                $cond: [
-                  {
-                    $eq: ["$type", "icome"],
-                  },
-                  "$amount",
-                  0,
-                ],
-              },
-            },
-            expense: {
-              $sum: {
-                $cond: [
-                  {
-                    $eq: ["$type", "expense"],
-                  },
-                  "$amount",
-                  0,
-                ],
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            OtherIncome: "$income",
-            expense: 1,
-            otherIncome: 1,
-          },
-        },
-      ]);
-    const bankDetails = await tblBankOperation.aggregate([
-      [
-        {
-          $match: {
-            operatorId: operatorId,
-          },
-        },
-        {
-          $unwind: {
-            path: "$transactions",
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            deposit: {
-              $sum: {
-                $cond: [
-                  {
-                    $eq: ["$transaction.transactionType", "deposit"],
-                  },
-                  "$transaction.amount",
-                  0,
-                ],
-              },
-            },
-            withdraw: {
-              $sum: {
-                $cond: [
-                  {
-                    $eq: ["$transaction.transactionType", "withdraw"],
-                  },
-                  "$transaction.amount",
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      ],
     ]);
     const otherIncome = await tblOtherExpenseAndIncome.aggregate([
       {
         $match: {
           operatorId: operatorId,
           type: "Income",
+          $expr: {
+            $eq: [
+              {
+                $month: {
+                  $dateFromString: {
+                    dateString: "$depositDate",
+                    format: "%d/%m/%Y",
+                  },
+                },
+              },
+              parseInt(month),
+            ],
+          },
         },
       },
       {
-        $group: {
-          _id: {
-            title: "$title",
-            modeOfPayment: "$modeOfPayment",
-            type: "$type",
-          },
-          otherIncome: {
-            $sum: {
-              $cond: [{}, "$amount", 0],
+        $addFields: {
+          depositYear: {
+            $year: {
+              $dateFromString: {
+                dateString: "$depositDate",
+                format: "%d/%m/%Y",
+              },
             },
           },
         },
       },
       {
-        $project: {
-          _id: 0,
-          title: "$_id.title",
-          modeOfPayment: "$_id.modeOfPayment",
-          type: "$_id.type",
-          otherIncome: 1,
-        },
-      },
-    ]);
-    const otherExpense = await tblOtherExpenseAndIncome.aggregate([
-      {
         $match: {
-          operatorId: operatorId,
-          type: "Expense",
+          depositYear: parseInt(year),
         },
       },
       {
         $group: {
-          _id: {
-            title: "$title",
-            modeOfPayment: "$modeOfPayment",
-            type: "$type",
-          },
-          otherIncome: {
-            $sum: {
-              $cond: [{}, "$amount", 0],
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          title: "$_id.title",
-          modeOfPayment: "$_id.modeOfPayment",
-          type: "$_id.type",
-          otherIncome: 1,
-        },
-      },
-    ]);
-
-    const Income = await tblCustomerReceipt.aggregate([
-      {
-        $match: {
-          operatorId: operatorId,
-        },
-      },
-      {
-        $group: {
-          _id: {
-            modeOfPayment: "$paymentMode",
-          },
-          amount: {
+          _id: null,
+          total: {
             $sum: "$amount",
           },
         },
@@ -437,35 +353,99 @@ router.get("/balanceSheet", AuthMiddleware.verifyToken, async (req, res) => {
       {
         $project: {
           _id: 0,
-          income: "$amount",
-          modeOfPayment: "$_id.modeOfPayment",
+          total: 1,
         },
       },
     ]);
-    console.log(bankDetails);
+    const expensesDetails = await tblOtherExpenseAndIncome.aggregate([
+      {
+        $match: {
+          operatorId: operatorId,
+          type: "Expense",
+          $expr: {
+            $eq: [
+              {
+                $month: {
+                  $dateFromString: {
+                    dateString: "$depositDate",
+                    format: "%d/%m/%Y",
+                  },
+                },
+              },
+              parseInt(month),
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          depositYear: {
+            $year: {
+              $dateFromString: {
+                dateString: "$depositDate",
+                format: "%d/%m/%Y",
+              },
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          depositYear: parseInt(year),
+        },
+      },
+      {
+        $group: {
+          _id: "$title",
+          sum: { $sum: "$amount" },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          expnceTitle: { $push: { title: "$_id", sum: "$sum" } },
+          total_expense: { $sum: "$sum" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          expnceTitle: 1,
+          total_expense: 1,
+        },
+      },
+    ]);
 
-    const obj = [...otherExpense, ...otherIncome, ...Income];
+    const collection = Income[0]?.income || 0;
+    const otherRevenue = otherIncome[0]?.total || 0;
+    const expense = expensesDetails[0] || 0;
+    const profit =
+      Income[0]?.income +
+        otherIncome[0]?.total -
+        expensesDetails[0]?.total_expense || 0;
 
-    const incSubEx =
-      dataFromCustomerIncome[0].income +
-      dataFromOtherIncomeAndExpense[0].otherIncome -
-      dataFromOtherIncomeAndExpense[0].expense;
-    const bankBal = bankDetails[0].deposit - bankDetails[0].withdraw;
     const response = {
-      totalIncome:
-        dataFromCustomerIncome[0].income +
-        dataFromOtherIncomeAndExpense[0].otherIncome,
-      totalExpense: dataFromOtherIncomeAndExpense[0].expense,
-      totalDeposit: bankDetails[0].deposit,
-      totalWidraw: bankDetails[0].withdraw,
-      inHand: incSubEx - bankBal,
-      loanAmount: 0, // Change this value if applicable
-      revenue: incSubEx,
+      revenue: [
+        {
+          title: "Collection",
+          amount: collection,
+        },
+        {
+          title: "Other Revenue",
+          amount: otherRevenue,
+        },
+        {
+          title: "Total Revenue",
+          amount: collection + otherRevenue,
+        },
+      ],
+      expense,
+      profit: profit,
     };
+    console.log(response);
     res.status(200).json({
       message: "Data generated for balance sheet successfull!",
       data: response,
-      allDetails: obj,
     });
   } catch (error) {
     res.status(500).json(error.message);
