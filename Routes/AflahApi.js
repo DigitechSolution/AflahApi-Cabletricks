@@ -2685,10 +2685,8 @@ router.get(
         {
           $match: {
             operatorId: operatorId,
+            status: { $ne: 3 },
           },
-        },
-        {
-          $unwind: "$assignedBox",
         },
         {
           $group: {
@@ -2697,7 +2695,18 @@ router.get(
               $sum: {
                 $cond: [
                   {
-                    $eq: ["$assignedBox.status", 1],
+                    $eq: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: "$assignedBox",
+                            as: "box",
+                            cond: { $eq: ["$$box.status", 1] },
+                          },
+                        },
+                      },
+                      { $size: "$assignedBox" },
+                    ],
                   },
                   1,
                   0,
@@ -2708,7 +2717,58 @@ router.get(
               $sum: {
                 $cond: [
                   {
-                    $eq: ["$assignedBox.status", 0],
+                    $eq: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: "$assignedBox",
+                            as: "box",
+                            cond: { $eq: ["$$box.status", 0] },
+                          },
+                        },
+                      },
+                      { $size: "$assignedBox" },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            temporaryDeactivatedCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      {
+                        $gt: [
+                          {
+                            $size: {
+                              $filter: {
+                                input: "$assignedBox",
+                                as: "box",
+                                cond: { $eq: ["$$box.status", 1] },
+                              },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                      {
+                        $gt: [
+                          {
+                            $size: {
+                              $filter: {
+                                input: "$assignedBox",
+                                as: "box",
+                                cond: { $eq: ["$$box.status", 0] },
+                              },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    ],
                   },
                   1,
                   0,
@@ -2717,26 +2777,6 @@ router.get(
             },
             totalCount: {
               $sum: 1,
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            customerId: "$_id",
-            activeCount: 1,
-            deactivatedCount: 1,
-            temporaryDeactivatedCount: {
-              $cond: [
-                {
-                  $and: [
-                    { $gt: ["$activeCount", 0] },
-                    { $gt: ["$deactivatedCount", 0] },
-                  ],
-                },
-                1,
-                0,
-              ],
             },
           },
         },
