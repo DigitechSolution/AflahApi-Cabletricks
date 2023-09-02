@@ -2819,60 +2819,65 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     const operatorId = req.user.userData.operatorId;
     const { month } = req.query;
     const currentDate = new Date();
-    const startDate = new Date(currentDate);
-    startDate.setMonth(currentDate.getMonth() - month);
     const aggregationPipelines = [
       {
         $match: {
           operatorId,
-          status: 1,
-          createdAt: { $gte: startDate, $lte: currentDate },
+          createdAt: { $lte: currentDate },
         },
       },
       {
         $group: {
-          _id: null,
-          totalIncome: { $sum: "$amount" },
+          _id: {
+            $dateToString: {
+              format: "%Y-%m",
+              date: "$createdAt",
+            },
+          },
+          totalIncome: { $sum: { $cond: [{ $eq: ["$type", "Income"] }, "$amount", 0] } },
+          totalExpense: { $sum: { $cond: [{ $eq: ["$type", "Expense"] }, "$amount", 0] } },
+        },
+      },
+      {
+        $sort: {
+          _id: 1,
         },
       },
     ];
-    const [totalReceiptIncome, totalIncome, totalExpense] = await Promise.all([
-      tblCustomerReceipt.aggregate(aggregationPipelines),
-      tblOtherExpenseAndIncome.aggregate(aggregationPipelines),
-      tblOtherExpenseAndIncome.aggregate([
-        {
-          $match: {
-            operatorId,
-            type: "Expense",
-            createdAt: { $gte: startDate, $lte: currentDate },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalExpenseSum: { $sum: "$amount" },
-          },
-        },
-      ]),
-    ]);
 
-    const responseData = {
-      TotalIncome:
-        (totalReceiptIncome[0]?.totalIncome || 0) +
-        (totalIncome[0]?.totalIncome || 0),
-      TotalExpense: totalExpense[0]?.totalExpenseSum || 0,
-    };
+    const results = await tblOtherExpenseAndIncome.aggregate(aggregationPipelines);
+    const incomeArray = [];
+    const expenseArray = [];
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - month);
+
+    for (let i = 0; i < month; i++) {
+      const monthDate = new Date(currentDate);
+      monthDate.setMonth(currentDate.getMonth() - i);
+      const formattedMonth = monthDate.toISOString().slice(0, 7); // Format: "YYYY-MM"
+      const result = results.find((item) => item._id === formattedMonth) || {
+        _id: formattedMonth,
+        totalIncome: 0,
+        totalExpense: 0,
+      };
+
+      incomeArray.push({ month: formattedMonth, incomeSum: result.totalIncome });
+      expenseArray.push({ month: formattedMonth, expenseSum: result.totalExpense });
+    }
 
     res.status(200).json({
       status: true,
       message: "Data fetch successfully!",
-      graphData: responseData,
+      incomeArray,
+      expenseArray,
     });
   } catch (error) {
     console.error(error);
     res.status(500).json(error.message);
   }
 });
+
 
 
 router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
