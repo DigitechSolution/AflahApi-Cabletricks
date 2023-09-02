@@ -2814,6 +2814,67 @@ router.get(
   }
 );
 
+router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
+  try {
+    const operatorId = req.user.userData.operatorId;
+    const { month } = req.query;
+    const currentDate = new Date();
+    const startDate = new Date(currentDate);
+    startDate.setMonth(currentDate.getMonth() - month);
+    const aggregationPipelines = [
+      {
+        $match: {
+          operatorId,
+          status: 1,
+          createdAt: { $gte: startDate, $lte: currentDate },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalIncome: { $sum: "$amount" },
+        },
+      },
+    ];
+    const [totalReceiptIncome, totalIncome, totalExpense] = await Promise.all([
+      tblCustomerReceipt.aggregate(aggregationPipelines),
+      tblOtherExpenseAndIncome.aggregate(aggregationPipelines),
+      tblOtherExpenseAndIncome.aggregate([
+        {
+          $match: {
+            operatorId,
+            type: "Expense",
+            createdAt: { $gte: startDate, $lte: currentDate },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalExpenseSum: { $sum: "$amount" },
+          },
+        },
+      ]),
+    ]);
+
+    const responseData = {
+      TotalIncome:
+        (totalReceiptIncome[0]?.totalIncome || 0) +
+        (totalIncome[0]?.totalIncome || 0),
+      TotalExpense: totalExpense[0]?.totalExpenseSum || 0,
+    };
+
+    res.status(200).json({
+      status: true,
+      message: "Data fetch successfully!",
+      graphData: responseData,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json(error.message);
+  }
+});
+
+
 router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
   const operatorId = req.user.userData.operatorId;
   const currentDate = new Date();
