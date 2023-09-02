@@ -2765,7 +2765,7 @@ router.get(
       ]);
       res.status(200).json({
         success: true,
-        statusCount,
+        statusCount: statusCount[0],
       });
     } catch (error) {
       console.error(error);
