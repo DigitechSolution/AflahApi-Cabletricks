@@ -2763,7 +2763,10 @@ router.get(
           },
         },
       ]);
-      res.json(statusCount);
+      res.status(200).json({
+        success: true,
+        statusCount,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "An error occurred" });
