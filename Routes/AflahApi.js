@@ -2259,6 +2259,518 @@ function calculatePercentageChange(previousValue, currentValue) {
   return percentageChange;
 }
 
+// test connection paid
+router.post(
+  "/operator/reports/connection/paid",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    var post = req.body;
+    let perPage;
+    let page;
+    let operatorId = req.user.userData.operatorId;
+    const filter = post.filter;
+    const date = new Date(req.body.date);
+    const month = date.getMonth() + 1; // add 1 because $month operator returns 1-12
+    const year = date.getFullYear();
+    let match = {
+      operatorId: operatorId,
+      $expr: {
+        $and: [
+          {
+            $eq: [
+              {
+                $month: "$createdAt",
+              },
+              month,
+            ],
+          },
+          {
+            $eq: [
+              {
+                $year: "$createdAt",
+              },
+              year,
+            ],
+          },
+        ],
+      },
+    };
+    // console.log(match, "match");
+    if (!isEmpty(filter)) {
+      console.log("test in");
+      if (filter.employee_field.length > 0 || filter.area_field.length > 0) {
+        if (filter.employee_field.length > 0) {
+          match.collectionStaff = { $in: filter.employee_field };
+        } else {
+          match.area = { $in: filter.area_field };
+        }
+      }
+
+      if (filter.hasOwnProperty("due_field")) {
+        filter.due_field.map((val) => {
+          if (typeof val.Contains != "undefined") {
+            if (val.Contains != "All") {
+              match.dueString = { $regex: `${val.Contains}` };
+            }
+          }
+          if (typeof val.Equals != "undefined") {
+            if (val.Equals != "All") {
+              match.due = parseInt(val.Equals);
+            }
+          }
+          if (typeof val["Starts with"] != "undefined") {
+            if (val["Starts with"] != "All") {
+              match.dueString = {
+                $regex: `^${val["Starts with"]}`,
+                $options: "m",
+              };
+            }
+          }
+          if (typeof val["Ends with"] != "undefined") {
+            if (val["Ends with"] != "All") {
+              match.dueString = {
+                $regex: `${val["Ends with"]}$`,
+                $options: "m",
+              };
+            }
+          }
+          if (typeof val["Greater than"] != "undefined") {
+            if (val["Greater than"] != "All") {
+              match.due = { $gt: parseInt(val["Greater than"]) };
+            }
+          }
+          if (typeof val["Greater than or equal to"] != "undefined") {
+            if (val["Greater than or equal to"] != "All") {
+              match.due = { $gte: parseInt(val["Greater than or equal to"]) };
+            }
+          }
+          if (typeof val["Less than"] != "undefined") {
+            if (val["Less than"] != "All") {
+              match.due = { $lt: parseInt(val["Less than"]) };
+            }
+          }
+          if (typeof val["Less than or equal to"] != "undefined") {
+            if (val["Less than or equal to"] != "All") {
+              match.due = { $lte: parseInt(val["Less than or equal to"]) };
+            }
+          }
+        });
+      }
+    }
+
+    try {
+      const count = await tblCustomerReceipt.aggregate([
+        {
+          $match: match,
+        },
+        {
+          $lookup: {
+            from: "tblCustomerInfo",
+            localField: "customerId",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+            localField: "userDetails.assignedBox.boxData",
+            foreignField: "_id",
+            as: "boxData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$boxData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+            localField: "userDetails.assignedBox.assignedPackage.packageData",
+            foreignField: "_id",
+            as: "assignedPackageData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assignedPackageData",
+          },
+        },
+        {
+          $lookup: {
+            from: "tblOperatorInvoiceTypeData",
+            localField: "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+            foreignField: "_id",
+            as: "invoiceData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$invoiceData",
+          },
+        },
+        {
+          $set: {
+            "userDetails.assignedBox": {
+              $map: {
+                input: "$userDetails.assignedBox",
+                as: "box",
+                in: {
+                  $mergeObjects: [
+                    "$boxData",
+                    {
+                      assignedPackage: {
+                        $map: {
+                          input: "$$box.assignedPackage",
+                          as: "package",
+                          in: {
+                            $mergeObjects: [
+                              "$assignedPackageData",
+                              "$$package",
+                              {
+                                invoiceTypeId: "$invoiceData",
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails.assignedBox",
+          },
+        },
+        {
+          $group: {
+            _id: "$userDetails._id",
+            userDetails: { $first: "$userDetails" },
+            // assignedBox: { $push: "$userDetails.assignedBox" },
+            // otherDetails: {
+            //   $push: {
+            //     amount: "$amount",
+            //     description: "$description",
+            //     discount: "$discount",
+            //     paidDate: "$paidDate",
+            //     paymentMode: "$paymentMode",
+            //     methode: "$methode",
+            //     status: "$status",
+            //     paymentType: "$paymentType",
+            //     currentDue: "$currentDue",
+            //   },
+            // },
+          },
+        },
+        {
+          $count: "userDetails",
+        },
+      ]);
+
+      if (post.rowsPerPage != "All") {
+        perPage = parseInt(post.rowsPerPage);
+        page = Math.max(0, post.page);
+      } else {
+        perPage = parseInt(count[0].userDetails);
+        page = Math.max(0, post.page);
+      }
+
+      const response = await tblCustomerReceipt.aggregate(
+        [
+          {
+            $match: match,
+          },
+          {
+            $lookup: {
+              from: "tblCustomerInfo",
+              localField: "customerId",
+              foreignField: "_id",
+              as: "userDetails",
+            },
+          },
+          {
+            $unwind: {
+              path: "$userDetails",
+            },
+          },
+          {
+            $lookup: {
+              from: "tblOperatorDevice", // Replace "packages" with the actual name of your collection
+              localField: "userDetails.assignedBox.boxData",
+              foreignField: "_id",
+              as: "boxData",
+            },
+          },
+          {
+            $unwind: {
+              path: "$boxData",
+            },
+          },
+          {
+            $lookup: {
+              from: "tblOperatorPackages", // Replace "packages" with the actual name of your collection
+              localField: "userDetails.assignedBox.assignedPackage.packageData",
+              foreignField: "_id",
+              as: "assignedPackageData",
+            },
+          },
+          {
+            $unwind: {
+              path: "$assignedPackageData",
+            },
+          },
+          {
+            $lookup: {
+              from: "tblOperatorInvoiceTypeData",
+              localField:
+                "userDetails.assignedBox.assignedPackage.invoiceTypeId",
+              foreignField: "_id",
+              as: "invoiceData",
+            },
+          },
+          {
+            $unwind: {
+              path: "$invoiceData",
+            },
+          },
+          {
+            $set: {
+              "userDetails.assignedBox": {
+                $map: {
+                  input: "$userDetails.assignedBox",
+                  as: "box",
+                  in: {
+                    $mergeObjects: [
+                      "$boxData",
+                      {
+                        assignedPackage: {
+                          $map: {
+                            input: "$$box.assignedPackage",
+                            as: "package",
+                            in: {
+                              $mergeObjects: [
+                                "$assignedPackageData",
+                                "$$package",
+                                {
+                                  invoiceTypeId: "$invoiceData",
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+          {
+            $unwind: {
+              path: "$userDetails.assignedBox",
+            },
+          },
+          // {
+          //   $addFields: {
+          //     otherDetailsTemp: {
+          //       amount: "$amount",
+          //       cgst: { $ifNull: ["$cgst", 0] },
+          //       igst: { $ifNull: ["$igst", 0] },
+          //       sgst: { $ifNull: ["$sgst", 0] },
+          //       description: "$description",
+          //       discount: "$discount",
+          //       paidDate: "$paidDate",
+          //       paymentMode: "$paymentMode",
+          //       methode: "$methode",
+          //       status: "$status",
+          //       paymentType: "$paymentType",
+          //       currentDue: "$currentDue",
+          //       createdAt: "$createdAt",
+          //     },
+          //   },
+          // },
+          {
+            $group: {
+              _id: "$userDetails._id",
+              userDetails: { $first: "$userDetails" },
+              assignedBox: { $push: "$userDetails.assignedBox" },
+              // otherDetails: { $push: "$otherDetailsTemp" },
+              amount: { $last: "$amount" },
+              paidDate: { $last: "$paidDate" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              // otherDetails: 1,
+              userDetails: {
+                userId: "$_id",
+                amount: "$amount",
+                paidDate: "$paidDate",
+                operatorId: "$userDetails.operatorId",
+                operatorCustId: "$userDetails.operatorCustId",
+                custName: "$userDetails.custName",
+                contact: "$userDetails.contact",
+                email: "$userDetails.email",
+                perAddress: "$userDetails.perAddress",
+                initAddress: "$userDetails.initAddress",
+                area: "$userDetails.area",
+                city: "$userDetails.city",
+                state: "$userDetails.state",
+                pin: "$userDetails.pin",
+                createDate: "$userDetails.createDate",
+                activationDate: "$uesrDetails.activationDate",
+                houseName: "$userDetails.houseName",
+                custCategory: "$userDetails.custCategory",
+                gstNo: "$userDetails.gstNo",
+                custType: "$userDetails.custType",
+                due: "$userDetails.due",
+                dueString: "$userDetails.dueString",
+                discount: "$userDetails.discount",
+                postPaid: "$userDetails.postPaid",
+                status: "$userDetails.status",
+                assignedBox: "$assignedBox",
+                statusString: "$userDetails.statusString",
+                autoCustId: "$userDetails.autoCustId",
+                autoCustIdString: "$userDetails.autoCustIdString",
+                createAt: "$userDetails.createdAt",
+              },
+            },
+          },
+          {
+            $sort: { "userDetails.paidDate": -1 },
+          },
+          {
+            $skip: perPage * page - perPage,
+          },
+          {
+            $limit: perPage,
+          },
+        ],
+        { allowDiskUse: true }
+      );
+
+      let responseArray = {
+        status: true,
+        message:
+          response.length > 0 ? "Data fetch successfull!" : "No data found!",
+        count: count.length > 0 ? count[0].userDetails : 0,
+        response: response,
+      };
+      res.status(200).json(responseArray);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json(error.message);
+    }
+  }
+);
+
+router.get(
+  "/customerStatusCount",
+  AuthMiddleware.verifyToken,
+  async (req, res) => {
+    const operatorId = req.user.userData.operatorId;
+    try {
+      const statusCount = await tblCustomerInfo.aggregate([
+        {
+          $match: {
+            operatorId: operatorId,
+          },
+        },
+        {
+          $unwind: "$assignedBox",
+        },
+        {
+          $group: {
+            _id: "$_id",
+            activeCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$assignedBox.status", 1],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            deactivatedCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: ["$assignedBox.status", 0],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            totalCount: {
+              $sum: 1,
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            customerId: "$_id",
+            activeCount: 1,
+            deactivatedCount: 1,
+            temporaryDeactivatedCount: {
+              $cond: [
+                {
+                  $and: [
+                    { $gt: ["$activeCount", 0] },
+                    { $gt: ["$deactivatedCount", 0] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalActiveCustomers: {
+              $sum: "$activeCount",
+            },
+            totalDeactivatedCustomers: {
+              $sum: "$deactivatedCount",
+            },
+            totalTemporaryDeactivatedCustomers: {
+              $sum: "$temporaryDeactivatedCount",
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalActiveCustomers: 1,
+            totalDeactivatedCustomers: 1,
+            totalTemporaryDeactivatedCustomers: 1,
+          },
+        },
+      ]);
+      res.json(statusCount);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "An error occurred" });
+    }
+  }
+);
+
 router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
   const operatorId = req.user.userData.operatorId;
   const currentDate = new Date();
