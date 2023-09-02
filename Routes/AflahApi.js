@@ -2819,11 +2819,42 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     const operatorId = req.user.userData.operatorId;
     const { month } = req.query;
     const currentDate = new Date();
-    const aggregationPipelines = [
+
+    // Aggregation pipeline for tblCustomerReceipt collection
+    const receiptAggregationPipelines = [
       {
         $match: {
           operatorId,
           createdAt: { $lte: currentDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m",
+              date: "$createdAt",
+            },
+          },
+          totalIncome: { $sum: "$amount" }, // Sum of all amounts as income
+          totalExpense: { $sum: 0 }, // Initialize expense sum as 0
+        },
+      },
+      {
+        $sort: {
+          _id: 1,
+        },
+      },
+    ];
+
+    const resultsReceipt = await tblCustomerReceipt.aggregate(receiptAggregationPipelines);
+
+    // Aggregation pipeline for tblOtherExpenseAndIncome collection
+    const expenseAggregationPipelines = [
+      {
+        $match: {
+          operatorId,
+          updatedAt: { $lte: currentDate },
         },
       },
       {
@@ -2845,25 +2876,30 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
       },
     ];
 
-    const results = await tblOtherExpenseAndIncome.aggregate(aggregationPipelines);
+    const resultsExpense = await tblOtherExpenseAndIncome.aggregate(expenseAggregationPipelines);
+
     const incomeArray = [];
     const expenseArray = [];
-
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - month);
 
     for (let i = 0; i < month; i++) {
       const monthDate = new Date(currentDate);
       monthDate.setMonth(currentDate.getMonth() - i);
       const formattedMonth = monthDate.toISOString().slice(0, 7); // Format: "YYYY-MM"
-      const result = results.find((item) => item._id === formattedMonth) || {
+
+      const resultReceipt = resultsReceipt.find((item) => item._id === formattedMonth) || {
         _id: formattedMonth,
         totalIncome: 0,
         totalExpense: 0,
       };
 
-      incomeArray.push({ month: formattedMonth, incomeSum: result.totalIncome });
-      expenseArray.push({ month: formattedMonth, expenseSum: result.totalExpense });
+      const resultExpense = resultsExpense.find((item) => item._id === formattedMonth) || {
+        _id: formattedMonth,
+        totalIncome: 0,
+        totalExpense: 0,
+      };
+
+      incomeArray.push({ month: formattedMonth, incomeSum: resultReceipt.totalIncome + resultExpense.totalIncome });
+      expenseArray.push({ month: formattedMonth, expenseSum: resultExpense.totalExpense });
     }
 
     res.status(200).json({
@@ -2877,8 +2913,6 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     res.status(500).json(error.message);
   }
 });
-
-
 
 router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
   const operatorId = req.user.userData.operatorId;
