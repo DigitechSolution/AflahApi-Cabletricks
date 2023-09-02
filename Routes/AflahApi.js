@@ -2819,6 +2819,8 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     const operatorId = req.user.userData.operatorId;
     const { month } = req.query;
     const currentDate = new Date();
+
+    // Aggregation pipeline for tblCustomerReceipt collection
     const receiptAggregationPipelines = [
       {
         $match: {
@@ -2834,8 +2836,8 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
               date: "$createdAt",
             },
           },
-          totalIncome: { $sum: "$amount" },
-          totalExpense: { $sum: 0 },
+          totalIncome: { $sum: "$amount" }, // Sum of all amounts as income
+          totalExpense: { $sum: 0 }, // Initialize expense sum as 0
         },
       },
       {
@@ -2846,11 +2848,13 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     ];
 
     const resultsReceipt = await tblCustomerReceipt.aggregate(receiptAggregationPipelines);
+
+    // Aggregation pipeline for tblOtherExpenseAndIncome collection
     const expenseAggregationPipelines = [
       {
         $match: {
           operatorId,
-          updatedAt: { $lte: currentDate },
+          createdAt: { $lte: currentDate },
         },
       },
       {
@@ -2874,13 +2878,12 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
 
     const resultsExpense = await tblOtherExpenseAndIncome.aggregate(expenseAggregationPipelines);
 
-    const incomeArray = [];
-    const expenseArray = [];
+    const combinedData = [];
 
     for (let i = 0; i < month; i++) {
       const monthDate = new Date(currentDate);
       monthDate.setMonth(currentDate.getMonth() - i);
-      const formattedMonth = monthDate.toISOString().slice(0, 7);
+      const formattedMonth = monthDate.toISOString().slice(0, 7); // Format: "YYYY-MM"
 
       const resultReceipt = resultsReceipt.find((item) => item._id === formattedMonth) || {
         _id: formattedMonth,
@@ -2894,21 +2897,20 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
         totalExpense: 0,
       };
 
-      incomeArray.push({ month: formattedMonth, incomeSum: resultReceipt.totalIncome + resultExpense.totalIncome });
-      expenseArray.push({ month: formattedMonth, expenseSum: resultExpense.totalExpense });
+      combinedData.push({
+        month: formattedMonth,
+        income: resultReceipt.totalIncome + resultExpense.totalIncome,
+        expense: resultExpense.totalExpense,
+      });
     }
 
-    res.status(200).json({
-      status: true,
-      message: "Data fetch successfully!",
-      incomeArray,
-      expenseArray,
-    });
+    res.status(200).json(combinedData);
   } catch (error) {
     console.error(error);
-    res.status(500).json(error.message);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 
 router.get("/summary-reports", AuthMiddleware.verifyToken, async (req, res) => {
   const operatorId = req.user.userData.operatorId;
