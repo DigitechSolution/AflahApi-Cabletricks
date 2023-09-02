@@ -2819,8 +2819,6 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     const operatorId = req.user.userData.operatorId;
     const { month } = req.query;
     const currentDate = new Date();
-
-    // Aggregation pipeline for tblCustomerReceipt collection
     const receiptAggregationPipelines = [
       {
         $match: {
@@ -2836,8 +2834,8 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
               date: "$createdAt",
             },
           },
-          totalIncome: { $sum: "$amount" }, // Sum of all amounts as income
-          totalExpense: { $sum: 0 }, // Initialize expense sum as 0
+          totalIncome: { $sum: "$amount" },
+          totalExpense: { $sum: 0 },
         },
       },
       {
@@ -2848,8 +2846,6 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     ];
 
     const resultsReceipt = await tblCustomerReceipt.aggregate(receiptAggregationPipelines);
-
-    // Aggregation pipeline for tblOtherExpenseAndIncome collection
     const expenseAggregationPipelines = [
       {
         $match: {
@@ -2884,7 +2880,7 @@ router.get("/income-expense", AuthMiddleware.verifyToken, async (req, res) => {
     for (let i = 0; i < month; i++) {
       const monthDate = new Date(currentDate);
       monthDate.setMonth(currentDate.getMonth() - i);
-      const formattedMonth = monthDate.toISOString().slice(0, 7); // Format: "YYYY-MM"
+      const formattedMonth = monthDate.toISOString().slice(0, 7);
 
       const resultReceipt = resultsReceipt.find((item) => item._id === formattedMonth) || {
         _id: formattedMonth,
